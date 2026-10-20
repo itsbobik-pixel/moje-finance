@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Moje finance</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -39,7 +39,9 @@
 
 * { box-sizing: border-box }
 [hidden] { display: none !important }
-html, body { margin: 0 }
+html, body { margin: 0; overflow-x: hidden; max-width: 100% }
+/* appka na ploše: pevné měřítko, žádné přibližování gestem */
+html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100% }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; padding-top: env(safe-area-inset-top, 0px) }
 main { max-width: 540px; margin: 0 auto; padding: 20px 16px 64px; display: grid; gap: 22px }
 h1, h2 { font-family: var(--display); margin: 0; text-wrap: balance }
@@ -69,6 +71,8 @@ h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em }
 .stat b { font-weight: 600 }
 .hero-btn { justify-self: start; background: var(--hero-fg); color: var(--hero); border-radius: 99px; padding: 8px 14px; font-weight: 600; font-size: .85rem }
 .anchor-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.debt-item { background: var(--bg) }
+.debt-item .acts { display: flex; gap: 4px }
 .anchor-form input { flex: 1 1 160px; background: var(--hero-fg); color: #18142e; border: 0; font-size: 1.05rem; font-weight: 600 }
 .hero-btn.alt { background: var(--hero-soft); color: var(--hero-fg) }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px }
@@ -112,7 +116,7 @@ form { display: grid; gap: 12px }
 @media (max-width: 420px) { .row { grid-template-columns: 1fr } }
 .field { display: grid; gap: 4px; min-width: 0 }
 .field label, .flabel { font-size: .8rem; color: var(--muted); font-weight: 500 }
-input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 10px 12px; width: 100%; min-width: 0 }
+input, select { font: inherit; font-size: 16px; /* menší písmo = iPhone při klepnutí přiblíží stránku */ color: var(--fg); background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 10px 12px; width: 100%; min-width: 0 }
 input:focus, select:focus { border-color: var(--hero); outline: none }
 button:focus-visible, .sync-pill:focus-visible, label.btn:focus-visible { outline: 2px solid var(--hero); outline-offset: 2px }
 .money { display: flex; gap: 6px }
@@ -174,26 +178,31 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
   </header>
 
   <section class="hero" aria-live="polite">
-    <div class="hero-label"><span id="heroLabel">Zůstatek z plateb</span></div>
+    <div class="hero-label"><span>Aktuální zůstatek</span></div>
     <div class="balance" id="balance">0 Kč</div>
-    <div class="hero-note" id="heroNote">Zadej, kolik máš teď na účtu, a appka bude počítat od té částky.</div>
-    <div class="stats">
-      <span class="stat">Konec měsíce <b class="num" id="eom">0 Kč</b></span>
-      <span class="stat">Opakované / měsíc <b class="num" id="monthly">0 Kč</b></span>
+    <div class="stats" id="debtStats" hidden>
+      <span class="stat">Dluhy <b class="num" id="debtTotal">0 Kč</b></span>
+      <span class="stat">Po splacení <b class="num" id="afterDebts">0 Kč</b></span>
     </div>
     <div class="hero-actions" id="heroActions">
       <button class="hero-btn" id="depositBtn" type="button">+ Přidat peníze</button>
-      <button class="hero-btn alt" id="anchorBtn" type="button">Aktuální zůstatek</button>
+      <button class="hero-btn alt" id="debtBtn" type="button">+ Přidat dluh</button>
     </div>
     <div class="anchor-form" id="anchorForm" hidden>
       <span class="hero-note" id="anchorHint" style="flex-basis:100%"></span>
+      <input id="heroName" maxlength="60" placeholder="Komu dlužíš" aria-label="Komu dlužíš" hidden>
       <input id="anchorIn" type="number" inputmode="decimal" step="0.01" aria-label="Částka v Kč">
       <button class="hero-btn" id="anchorSave" type="button">Uložit</button>
       <button class="hero-btn alt" id="anchorCancel" type="button">Zrušit</button>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card settings" id="debtsCard" hidden>
+    <div class="head"><h2>Dluhy</h2><span class="total" id="debtsSum"></span></div>
+    <div class="list" id="debtList"></div>
+  </section>
+
+  <section class="card" hidden>
     <h2>Nová platba</h2>
     <form id="form" novalidate>
       <div class="seg" role="radiogroup" aria-label="Typ">
@@ -232,7 +241,6 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
         </div>
       </div>
       <button class="primary" id="add" type="submit">Přidat platbu</button>
-      <p class="msg" id="msg"></p>
     </form>
   </section>
 
@@ -266,6 +274,7 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
 
   <section style="display:grid;gap:10px">
     <div class="head"><h2>Platby</h2><span class="count" id="count"></span></div>
+    <p class="msg" id="msg"></p>
     <div class="list" id="list"></div>
   </section>
 
@@ -321,6 +330,8 @@ const KEY = 'moje-finance:payments', DEL_KEY = 'moje-finance:deleted', ANCHOR_KE
 let payments = [], deleted = {}, anchor = null; // anchor = { amount, date: 'YYYY-MM-DD', at: ms }
 let rules = {}; // naučené kategorie: { 'normalizovany popis': { cat, at } }
 let statements = []; // nahrané výpisy: { account, from, to, at }
+let debts = []; // dluhy: { id, name, amount, date, updated }
+const DEBTS_KEY = 'moje-finance:debts';
 const STMT_KEY = 'moje-finance:statements';
 function persist() {
   try {
@@ -328,6 +339,7 @@ function persist() {
     localStorage.setItem(DEL_KEY, JSON.stringify(deleted));
     localStorage.setItem(RULES_KEY, JSON.stringify(rules));
     localStorage.setItem(STMT_KEY, JSON.stringify(statements));
+    localStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
     anchor ? localStorage.setItem(ANCHOR_KEY, JSON.stringify(anchor)) : localStorage.removeItem(ANCHOR_KEY);
   } catch (e) { setMsg('Uložení do prohlížeče se nepovedlo.', true); }
 }
@@ -359,7 +371,7 @@ const dayBefore = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
 // Se zadaným zůstatkem: zůstatek + platby po dni zadání.
 // Platby v den zadání se počítají jen ty přidané až po zadání zůstatku.
 function balanceAt(d) {
-  if (!anchor) return payments.reduce((s, p) => s + signed(p) * countUntil(p, d), 0);
+  return payments.reduce((s, p) => s + signed(p) * countUntil(p, d), 0);
   const a = parse(anchor.date);
   return payments.reduce((s, p) => {
     let n = countUntil(p, d) - countUntil(p, a);
@@ -377,13 +389,7 @@ function nextDate(p) {
 function render() {
   const t = today();
   $('balance').textContent = fmt(balanceAt(t));
-  $('eom').textContent = fmt(balanceAt(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
-  const monthly = payments.reduce((s, p) => s + signed(p) * ({ week: 52 / 12, month: 1, year: 1 / 12 }[p.repeat] || 0), 0);
-  $('monthly').textContent = (monthly > 0 ? '+' : '') + fmt(monthly);
-  $('heroLabel').textContent = anchor ? 'Aktuálně na účtu' : 'Zůstatek z plateb';
-  $('heroNote').textContent = anchor
-    ? 'Zadáno ' + parse(anchor.date).toLocaleDateString('cs-CZ') + ' jako ' + fmt(anchor.amount) + ', dál se počítá s platbami.'
-    : 'Zadej, kolik máš teď na účtu, a appka bude počítat od té částky.';
+  renderDebts();
   renderBreakdown();
   renderCoverage();
 
@@ -497,32 +503,82 @@ $('form').addEventListener('submit', async e => {
   setMsg(cur === 'CZK' ? 'Přidáno.' : 'Přidáno, převedeno na ' + fmt(data.amount) + '.'); $('f-name').focus();
 });
 
-// ── Karta zůstatku: přidat peníze / zadat aktuální zůstatek na účtu ──
+// ── Karta zůstatku: přidat peníze / přidat dluh ──
 let heroMode = null;
 function openHero(mode) {
   heroMode = mode;
   $('anchorForm').hidden = !mode; $('heroActions').hidden = !!mode;
   if (!mode) return;
-  const isAnchor = mode === 'anchor';
-  $('anchorHint').textContent = isAnchor ? 'Kolik máš teď skutečně na účtu?' : 'Kolik peněz přidáváš? Uloží se jako dnešní příjem.';
-  $('anchorSave').textContent = isAnchor ? 'Uložit zůstatek' : 'Přidat';
-  $('anchorIn').placeholder = isAnchor ? 'např. 25 000' : 'např. 1 000';
-  $('anchorIn').value = isAnchor ? String(Math.round(balanceAt(today()) * 100) / 100) : '';
-  $('anchorIn').focus(); $('anchorIn').select();
+  const debt = mode === 'debt';
+  $('heroName').hidden = !debt; $('heroName').value = '';
+  $('anchorHint').textContent = debt ? 'Komu a kolik dlužíš?' : 'Kolik peněz přidáváš? Uloží se jako dnešní příjem.';
+  $('anchorSave').textContent = debt ? 'Přidat dluh' : 'Přidat';
+  $('anchorIn').placeholder = debt ? 'Částka v Kč' : 'např. 1 000';
+  $('anchorIn').value = '';
+  (debt ? $('heroName') : $('anchorIn')).focus();
 }
 $('depositBtn').onclick = () => openHero('deposit');
-$('anchorBtn').onclick = () => openHero('anchor');
+$('debtBtn').onclick = () => openHero('debt');
 $('anchorCancel').onclick = () => openHero(null);
 function saveHero() {
   const v = Math.round(parseFloat(String($('anchorIn').value).replace(/\s/g, '').replace(',', '.')) * 100) / 100;
-  if (!Number.isFinite(v) || (heroMode === 'deposit' && !(v > 0))) { $('anchorIn').focus(); return; }
-  if (heroMode === 'anchor') anchor = { amount: v, date: iso(today()), at: Date.now() };
+  if (heroMode === 'debt' && !$('heroName').value.trim()) { $('heroName').focus(); return; }
+  if (!(v > 0)) { $('anchorIn').focus(); return; }
+  if (heroMode === 'debt') debts.push({ id: newId(), name: $('heroName').value.trim(), amount: v, date: iso(today()), updated: Date.now() });
   else payments.push({ id: newId(), name: 'Vklad', amount: v, date: iso(today()), repeat: 'none', kind: 'in', cat: 'income',
     created: new Date().toISOString(), updated: Date.now() });
   save(); render(); openHero(null);
 }
 $('anchorSave').onclick = saveHero;
-$('anchorIn').addEventListener('keydown', e => { if (e.key === 'Enter') saveHero(); if (e.key === 'Escape') openHero(null); });
+for (const id of ['anchorIn', 'heroName'])
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') saveHero(); if (e.key === 'Escape') openHero(null); });
+
+// dvojklik pro potvrzení (žádné systémové dialogy)
+function armed(btn, label, confirmLabel, action) {
+  btn.textContent = label;
+  btn.onclick = () => {
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed'); btn.textContent = confirmLabel;
+      setTimeout(() => { btn.classList.remove('armed'); btn.textContent = label; }, 3000);
+      return;
+    }
+    action();
+  };
+}
+function renderDebts() {
+  const total = debts.reduce((s, d) => s + d.amount, 0);
+  $('debtStats').hidden = !debts.length; $('debtsCard').hidden = !debts.length;
+  if (!debts.length) return;
+  $('debtTotal').textContent = '−' + fmt(total);
+  $('afterDebts').textContent = fmt(balanceAt(today()) - total);
+  $('debtsSum').textContent = fmt(total);
+  $('debtList').replaceChildren(...[...debts].sort((a, b) => a.date.localeCompare(b.date)).map(d => {
+    const row = document.createElement('div'); row.className = 'item debt-item';
+    const av = document.createElement('div'); av.className = 'avatar'; av.setAttribute('aria-hidden', 'true');
+    av.textContent = (d.name.trim()[0] || '?').toUpperCase(); av.style.background = colorFor(d.name);
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = d.name;
+    const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = 'od ' + parse(d.date).toLocaleDateString('cs-CZ');
+    const right = document.createElement('div'); right.className = 'right';
+    const amt = document.createElement('div'); amt.className = 'amt out'; amt.textContent = fmt(d.amount);
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const paid = document.createElement('button'); paid.className = 'del'; paid.type = 'button';
+    paid.setAttribute('aria-label', 'Splaceno: ' + d.name);
+    armed(paid, 'Splaceno', 'Opravdu?', () => {
+      const now = Date.now();
+      payments.push({ id: newId(), name: 'Splátka dluhu: ' + d.name, amount: d.amount, date: iso(today()), repeat: 'none', kind: 'out',
+        cat: 'other', created: new Date(now).toISOString(), updated: now });
+      debts = debts.filter(x => x.id !== d.id); deleted[d.id] = now;
+      save(); render(); setMsg('Dluh „' + d.name + '“ splacen, ' + fmt(d.amount) + ' odečteno ze zůstatku.');
+    });
+    const del = document.createElement('button'); del.className = 'del'; del.type = 'button';
+    del.setAttribute('aria-label', 'Smazat dluh ' + d.name);
+    armed(del, 'Smazat', 'Opravdu?', () => { debts = debts.filter(x => x.id !== d.id); deleted[d.id] = Date.now(); save(); render(); });
+    acts.append(paid, del);
+    right.append(amt, acts);
+    row.append(av, name, right, meta);
+    return row;
+  }));
+}
 
 // ── Kategorie: naučená pravidla, pak klíčová slova (bez diakritiky) ──
 const CATS = {
@@ -948,7 +1004,6 @@ function showPreview(fresh, all, dupes, bank, stmt) {
   if (tr) s += ' ' + tr + '× převod mezi tvými účty, ten se do výdajů nepočítá.';
   s += fresh.length ? ' Nových: ' + fresh.length + (top ? ', nejčastěji ' + top : '') + '.' : ' Všechny už v appce máš.';
   if (dupes && fresh.length) s += ' ' + dupes + ' už v appce máš, ty přeskočím.';
-  if (anchor && fresh.some(r => r.date <= anchor.date)) s += ' Platby do ' + dcs(anchor.date) + ' už jsou v tvém zadaném zůstatku, takže ho nezmění. Uvidíš je v seznamu a ve výdajích podle kategorií.';
   $('stmtSummary').textContent = s;
   $('stmtRows').replaceChildren(...fresh.slice(0, 8).map(r => {
     const row = document.createElement('div'); row.className = 'prev-row';
@@ -1064,12 +1119,13 @@ $('stmtLabel').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key
 try { payments = (JSON.parse(localStorage.getItem(KEY)) || []).filter(valid); } catch (e) { payments = []; }
 try { deleted = JSON.parse(localStorage.getItem(DEL_KEY)) || {}; } catch (e) { deleted = {}; }
 try { rules = JSON.parse(localStorage.getItem(RULES_KEY)) || {}; } catch (e) { rules = {}; }
+try { debts = (JSON.parse(localStorage.getItem(DEBTS_KEY)) || []).filter(d => d && d.id && typeof d.name === 'string' && typeof d.amount === 'number' && typeof d.date === 'string'); } catch (e) { debts = []; }
 try { statements = (JSON.parse(localStorage.getItem(STMT_KEY)) || []).filter(x => x && x.account && x.from && x.to); } catch (e) { statements = []; }
 try { const a = JSON.parse(localStorage.getItem(ANCHOR_KEY)); anchor = validAnchor(a) ? a : null; } catch (e) { anchor = null; }
 render();
 
 $('export').onclick = () => {
-  const blob = new Blob([JSON.stringify({ payments, anchor, rules, statements }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ payments, anchor, rules, statements, debts }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'finance-zaloha-' + iso(today()) + '.json';
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -1085,6 +1141,7 @@ $('import').onchange = async e => {
     deleted = {};
     if (!Array.isArray(data) && validAnchor(data.anchor)) anchor = { ...data.anchor, at: now };
     if (!Array.isArray(data) && data.rules && typeof data.rules === 'object') rules = data.rules;
+    if (!Array.isArray(data) && Array.isArray(data.debts)) debts = data.debts.filter(d => d && d.id && typeof d.name === 'string' && typeof d.amount === 'number' && typeof d.date === 'string');
     if (!Array.isArray(data) && Array.isArray(data.statements)) statements = data.statements.filter(x => x && x.account && x.from && x.to);
     save(); render(); setMsg('Záloha nahrána: ' + payments.length + ' plateb.');
   } catch { setMsg('Soubor se nepodařilo načíst. Vyber zálohu stáhnutou z této appky.', true); }
@@ -1123,7 +1180,11 @@ function merge(a, b) {
   for (const [k, v] of Object.entries(b.rules || {})) if (v && CATS[v.cat] && (!rl[k] || v.at > rl[k].at)) rl[k] = v;
   const st = [...(a.statements || [])];
   for (const x of b.statements || []) if (x && x.account && !st.some(y => y.account === x.account && y.from === x.from && y.to === x.to)) st.push(x);
-  return { payments: out, deleted: del, anchor: anchors[0] || null, rules: rl, statements: st };
+  const dById = {};
+  for (const d of [...(a.debts || []), ...(b.debts || [])].filter(d => d && d.id && typeof d.name === 'string' && typeof d.amount === 'number' && typeof d.date === 'string'))
+    if (!dById[d.id] || (d.updated || 0) > (dById[d.id].updated || 0)) dById[d.id] = d;
+  const dOut = Object.values(dById).filter(d => !(del[d.id] >= (d.updated || 0)));
+  return { payments: out, deleted: del, anchor: anchors[0] || null, rules: rl, statements: st, debts: dOut };
 }
 
 function scheduleSync() {
@@ -1142,11 +1203,11 @@ async function syncNow() {
     const remote = await res.json();
     if (!res.ok || remote.error) throw new Error(remote.error || res.status);
     if (code !== syncCode) return;
-    const m = remote.data ? merge({ payments, deleted, anchor, rules, statements }, remote.data) : { payments, deleted, anchor, rules, statements };
-    payments = m.payments; deleted = m.deleted; anchor = m.anchor; rules = m.rules; statements = m.statements;
+    const m = remote.data ? merge({ payments, deleted, anchor, rules, statements, debts }, remote.data) : { payments, deleted, anchor, rules, statements, debts };
+    payments = m.payments; deleted = m.deleted; anchor = m.anchor; rules = m.rules; statements = m.statements; debts = m.debts;
     persist(); render();
     const put = await fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': code, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { payments, deleted, anchor, rules, statements } }) });
+      body: JSON.stringify({ data: { payments, deleted, anchor, rules, statements, debts } }) });
     if (!put.ok) throw new Error(put.status);
     syncLast = Date.now(); syncErr = null;
     try { localStorage.setItem('moje-finance:sync-last', String(syncLast)); } catch {}
@@ -1217,7 +1278,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') syncNow();
   else if (syncTimer) {
     clearTimeout(syncTimer); syncTimer = null;
-    const body = JSON.stringify({ data: { payments, deleted, anchor, rules, statements } });
+    const body = JSON.stringify({ data: { payments, deleted, anchor, rules, statements, debts } });
     fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': syncCode, 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 }).catch(() => {});
   }
 });
