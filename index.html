@@ -54,6 +54,26 @@ h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em }
 .dots { display: inline-flex; gap: 3px }
 .dots i { width: 8px; height: 8px; border-radius: 50% }
 .dots i:nth-child(1) { background: var(--pop) } .dots i:nth-child(2) { background: var(--pink) } .dots i:nth-child(3) { background: var(--cyan) }
+.gear { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: pointer; padding: 0; margin-left: 4px }
+.gear:hover, .gear[aria-pressed="true"] { color: var(--hero) }
+.gear:focus-visible { outline: 2px solid var(--hero); outline-offset: 2px }
+main:not(.in-settings) > [data-view="settings"] { display: none !important }
+main.in-settings > section:not([data-view="settings"]) { display: none !important }
+.brand, .sync-pill, .tag, .count, .total { white-space: nowrap }
+main, .card, .list, .settings { grid-template-columns: minmax(0, 1fr) }
+.item { grid-template-columns: auto minmax(0, 1fr) auto }
+.item .meta { min-width: 0 }
+.top > * { min-width: 0 }
+.sync-pill { overflow: hidden; text-overflow: ellipsis; flex-shrink: 1 }
+.brand { flex-shrink: 0 }
+.head { flex-wrap: wrap }
+.settings-head { display: flex; align-items: center; gap: 12px }
+.settings-head h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em }
+.up-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line) }
+.up-row:first-child { border-top: 0 }
+.up-row .d { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums }
+.up-row .nm { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-weight: 500 }
+.up-row .a { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap }
 .sync-pill { font-size: .78rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: inherit }
 .sync-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted) }
 .sync-pill.on::before { background: var(--plus) } .sync-pill.err::before { background: var(--minus) }
@@ -73,6 +93,10 @@ h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em }
 .anchor-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .debt-item { background: var(--bg) }
 .debt-item .acts { display: flex; gap: 4px }
+.due-field { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; font-size: .85rem; font-weight: 600; color: var(--hero-fg) }
+.due-field input { flex: 1 1 auto }
+.tag.late { background: var(--minus); color: #fff }
+.tag.soon { background: var(--pop); color: #18142e }
 .anchor-form input { flex: 1 1 160px; background: var(--hero-fg); color: #18142e; border: 0; font-size: 1.05rem; font-weight: 600 }
 .hero-btn.alt { background: var(--hero-soft); color: var(--hero-fg) }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 8px }
@@ -173,8 +197,12 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
 <body>
 <main>
   <header class="top">
-    <div class="brand"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>Moje finance</div>
-    <button class="sync-pill" id="syncPill" type="button">Synchronizace vypnutá</button>
+    <div class="brand"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>Moje finance
+      <button class="gear" id="gearBtn" type="button" aria-label="Nastavení" title="Nastavení">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 13.92 2h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.72 8.47a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/></svg>
+      </button>
+    </div>
+    <button class="sync-pill" id="syncPill" type="button">Sync vypnutá</button>
   </header>
 
   <section class="hero" aria-live="polite">
@@ -191,7 +219,10 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     <div class="anchor-form" id="anchorForm" hidden>
       <span class="hero-note" id="anchorHint" style="flex-basis:100%"></span>
       <input id="heroName" maxlength="60" placeholder="Komu dlužíš" aria-label="Komu dlužíš" hidden>
-      <input id="anchorIn" type="number" inputmode="decimal" step="0.01" aria-label="Částka v Kč">
+      <label class="due-field" id="heroDueWrap" for="heroDue" hidden>Zaplatit do <input type="date" id="heroDue"></label>
+      <input id="anchorIn" type="number" inputmode="decimal" step="0.01" placeholder="Částka v Kč" aria-label="Částka v Kč">
+      <input id="heroEur" type="number" inputmode="decimal" step="0.01" placeholder="nebo v €" aria-label="Částka v eurech">
+      <span class="hero-note" id="heroFx" style="flex-basis:100%" aria-live="polite"></span>
       <button class="hero-btn" id="anchorSave" type="button">Uložit</button>
       <button class="hero-btn alt" id="anchorCancel" type="button">Zrušit</button>
     </div>
@@ -244,7 +275,17 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     </form>
   </section>
 
-  <section class="card settings" id="importCard">
+  <section class="card settings" id="upcoming">
+    <div class="head"><h2>Nadcházející platby</h2><span class="count" id="upSum"></span></div>
+    <div class="list" id="upList"></div>
+  </section>
+
+  <section class="settings-head" data-view="settings">
+    <button class="ghost" id="backBtn" type="button">← Zpět</button>
+    <h1>Nastavení</h1>
+  </section>
+
+  <section class="card settings" id="importCard" data-view="settings">
     <h2>Import výpisu z banky</h2>
     <p class="msg">Nahraj PDF výpis z Revolutu nebo Air Bank, případně CSV z jakékoli banky. Appka najde datum, částku a popis, platby roztřídí do kategorií a ty, které už máš, přeskočí.</p>
     <div class="coverage" id="coverage" hidden></div>
@@ -278,7 +319,7 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     <div class="list" id="list"></div>
   </section>
 
-  <section class="card settings" id="sync">
+  <section class="card settings" id="sync" data-view="settings">
     <div class="head"><h2>Synchronizace</h2><span class="count" id="syncState"></span></div>
     <div id="syncOff" class="settings">
       <p class="msg">Stejné platby na mobilu i na počítači. Vytvoř kód a na druhém zařízení ho zadej.</p>
@@ -304,7 +345,7 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     <p class="msg" id="syncMsg"></p>
   </section>
 
-  <section class="card settings">
+  <section class="card settings" data-view="settings">
     <h2>Záloha</h2>
     <p class="msg">Bez synchronizace jsou platby jen v tomhle prohlížeči. Záloha do souboru se hodí i tak.</p>
     <div class="actions">
@@ -390,6 +431,7 @@ function render() {
   const t = today();
   $('balance').textContent = fmt(balanceAt(t));
   renderDebts();
+  renderUpcoming();
   renderBreakdown();
   renderCoverage();
 
@@ -511,26 +553,50 @@ function openHero(mode) {
   if (!mode) return;
   const debt = mode === 'debt';
   $('heroName').hidden = !debt; $('heroName').value = '';
+  $('heroDueWrap').hidden = !debt; $('heroDue').value = ''; $('heroDue').min = iso(today());
   $('anchorHint').textContent = debt ? 'Komu a kolik dlužíš?' : 'Kolik peněz přidáváš? Uloží se jako dnešní příjem.';
   $('anchorSave').textContent = debt ? 'Přidat dluh' : 'Přidat';
-  $('anchorIn').placeholder = debt ? 'Částka v Kč' : 'např. 1 000';
-  $('anchorIn').value = '';
+  $('anchorIn').value = ''; $('heroEur').value = ''; $('heroFx').textContent = '';
   (debt ? $('heroName') : $('anchorIn')).focus();
 }
 $('depositBtn').onclick = () => openHero('deposit');
 $('debtBtn').onclick = () => openHero('debt');
 $('anchorCancel').onclick = () => openHero(null);
-function saveHero() {
-  const v = Math.round(parseFloat(String($('anchorIn').value).replace(/\s/g, '').replace(',', '.')) * 100) / 100;
+
+// vyplňuje se jen jedna částka: Kč, nebo € (převede se dnešním kurzem ECB)
+const readNum = el => Math.round(parseFloat(String(el.value).replace(/\s/g, '').replace(',', '.')) * 100) / 100;
+let heroFxSeq = 0;
+async function heroFxPreview() {
+  const eur = readNum($('heroEur')), seq = ++heroFxSeq;
+  if (!(eur > 0)) { $('heroFx').textContent = ''; return; }
+  try {
+    const r = await getRate('EUR', iso(today()));
+    if (seq === heroFxSeq) $('heroFx').textContent = '≈ ' + fmt(eur * r.rate) + ' (1 € = ' + fmtRate(r.rate) + ' Kč)';
+  } catch { if (seq === heroFxSeq) $('heroFx').textContent = 'Kurz se nepodařilo načíst. Zadej částku v Kč.'; }
+}
+$('anchorIn').addEventListener('input', () => { if ($('anchorIn').value) { $('heroEur').value = ''; heroFxPreview(); } });
+$('heroEur').addEventListener('input', () => { if ($('heroEur').value) $('anchorIn').value = ''; heroFxPreview(); });
+
+async function saveHero() {
   if (heroMode === 'debt' && !$('heroName').value.trim()) { $('heroName').focus(); return; }
-  if (!(v > 0)) { $('anchorIn').focus(); return; }
-  if (heroMode === 'debt') debts.push({ id: newId(), name: $('heroName').value.trim(), amount: v, date: iso(today()), updated: Date.now() });
-  else payments.push({ id: newId(), name: 'Vklad', amount: v, date: iso(today()), repeat: 'none', kind: 'in', cat: 'income',
-    created: new Date().toISOString(), updated: Date.now() });
+  const czk = readNum($('anchorIn')), eur = readNum($('heroEur'));
+  let amount, fx = {};
+  if (czk > 0) amount = czk;
+  else if (eur > 0) {
+    try {
+      const r = await getRate('EUR', iso(today()));
+      amount = Math.round(eur * r.rate * 100) / 100;
+      fx = { cur: 'EUR', orig: eur, rate: r.rate, rateDate: r.date };
+    } catch { $('heroFx').textContent = 'Kurz se nepodařilo načíst. Zadej částku v Kč.'; return; }
+  } else { $('anchorIn').focus(); return; }
+  if (heroMode === 'debt') debts.push({ id: newId(), name: $('heroName').value.trim(), amount, date: iso(today()),
+    due: $('heroDue').value || null, ...fx, updated: Date.now() });
+  else payments.push({ id: newId(), name: 'Vklad', amount, date: iso(today()), repeat: 'none', kind: 'in', cat: 'income',
+    ...fx, created: new Date().toISOString(), updated: Date.now() });
   save(); render(); openHero(null);
 }
 $('anchorSave').onclick = saveHero;
-for (const id of ['anchorIn', 'heroName'])
+for (const id of ['anchorIn', 'heroEur', 'heroName', 'heroDue'])
   $(id).addEventListener('keydown', e => { if (e.key === 'Enter') saveHero(); if (e.key === 'Escape') openHero(null); });
 
 // dvojklik pro potvrzení (žádné systémové dialogy)
@@ -545,6 +611,43 @@ function armed(btn, label, confirmLabel, action) {
     action();
   };
 }
+// nadcházející platby na 30 dní: opakované, naplánované a dluhy se splatností
+function renderUpcoming() {
+  const t = today(), end = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 30);
+  const items = [];
+  for (const p of payments) {
+    const start = parse(p.date);
+    if (p.repeat === 'none') { if (start > t && start <= end) items.push({ date: start, name: p.name, amount: p.amount, kind: p.kind }); continue; }
+    for (let n = Math.max(0, countUntil(p, t)); n < 400; n++) {
+      const o = occ(start, p.repeat, n);
+      if (o > end) break;
+      if (o > t) items.push({ date: o, name: p.name, amount: p.amount, kind: p.kind, repeat: p.repeat });
+    }
+  }
+  for (const d of debts) if (d.due && parse(d.due) <= end) items.push({ date: parse(d.due), name: d.name, amount: d.amount, kind: 'out', debt: true, late: parse(d.due) < t });
+  items.sort((a, b) => a.date - b.date);
+  const out = items.filter(i => i.kind === 'out').reduce((s, i) => s + i.amount, 0);
+  $('upSum').textContent = out ? '−' + fmt(out) + ' za 30 dní' : '';
+  if (!items.length) {
+    const e = document.createElement('div'); e.className = 'empty';
+    e.textContent = 'Na příštích 30 dní nemáš naplánované žádné platby ani dluhy se splatností.';
+    $('upList').replaceChildren(e); return;
+  }
+  $('upList').replaceChildren(...items.map(i => {
+    const row = document.createElement('div'); row.className = 'up-row';
+    const d = document.createElement('span'); d.className = 'd';
+    const days = Math.round((i.date - t) / 864e5);
+    d.textContent = days === 1 ? 'zítra' : i.date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
+    const n = document.createElement('span'); n.className = 'nm'; n.append(i.name);
+    const tag = document.createElement('span');
+    if (i.debt) { tag.className = 'tag ' + (i.late ? 'late' : 'soon'); tag.textContent = i.late ? 'dluh po splatnosti' : 'dluh'; n.append(tag); }
+    else if (i.repeat) { tag.className = 'tag rep'; tag.textContent = '↻ ' + REPEAT[i.repeat]; n.append(tag); }
+    const a = document.createElement('span'); a.className = 'a'; a.style.color = i.kind === 'in' ? 'var(--plus)' : 'var(--fg)';
+    a.textContent = (i.kind === 'in' ? '+' : '−') + fmt(i.amount);
+    row.append(d, n, a); return row;
+  }));
+}
+
 function renderDebts() {
   const total = debts.reduce((s, d) => s + d.amount, 0);
   $('debtStats').hidden = !debts.length; $('debtsCard').hidden = !debts.length;
@@ -552,21 +655,42 @@ function renderDebts() {
   $('debtTotal').textContent = '−' + fmt(total);
   $('afterDebts').textContent = fmt(balanceAt(today()) - total);
   $('debtsSum').textContent = fmt(total);
-  $('debtList').replaceChildren(...[...debts].sort((a, b) => a.date.localeCompare(b.date)).map(d => {
+  // nejdřív dluhy s nejbližším termínem, bez termínu na konec
+  const byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || a.date.localeCompare(b.date);
+  const t0 = today().getTime();
+  $('debtList').replaceChildren(...[...debts].sort(byDue).map(d => {
     const row = document.createElement('div'); row.className = 'item debt-item';
     const av = document.createElement('div'); av.className = 'avatar'; av.setAttribute('aria-hidden', 'true');
     av.textContent = (d.name.trim()[0] || '?').toUpperCase(); av.style.background = colorFor(d.name);
     const name = document.createElement('div'); name.className = 'name'; name.textContent = d.name;
-    const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = 'od ' + parse(d.date).toLocaleDateString('cs-CZ');
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const since = document.createElement('span'); since.textContent = 'od ' + parse(d.date).toLocaleDateString('cs-CZ');
+    meta.append(since);
+    if (d.due) {
+      const left = Math.round((parse(d.due).getTime() - t0) / 864e5);
+      const due = document.createElement('span'); due.textContent = 'zaplatit do ' + parse(d.due).toLocaleDateString('cs-CZ');
+      meta.append(due);
+      if (left <= 7) {
+        const tag = document.createElement('span'); tag.className = 'tag ' + (left < 0 ? 'late' : 'soon');
+        tag.textContent = left < 0 ? 'po splatnosti ' + (-left) + (-left === 1 ? ' den' : -left < 5 ? ' dny' : ' dní')
+          : left === 0 ? 'dnes' : left === 1 ? 'zítra' : 'za ' + left + (left < 5 ? ' dny' : ' dní');
+        meta.append(tag);
+      }
+    }
     const right = document.createElement('div'); right.className = 'right';
     const amt = document.createElement('div'); amt.className = 'amt out'; amt.textContent = fmt(d.amount);
+    if (d.cur === 'EUR' && typeof d.orig === 'number') {
+      const c = document.createElement('span'); c.className = 'tag fxtag'; c.textContent = fmtCur(d.orig, 'EUR') + ' · kurz ' + fmtRate(d.rate);
+      meta.append(c);
+    }
     const acts = document.createElement('div'); acts.className = 'acts';
     const paid = document.createElement('button'); paid.className = 'del'; paid.type = 'button';
     paid.setAttribute('aria-label', 'Splaceno: ' + d.name);
     armed(paid, 'Splaceno', 'Opravdu?', () => {
       const now = Date.now();
       payments.push({ id: newId(), name: 'Splátka dluhu: ' + d.name, amount: d.amount, date: iso(today()), repeat: 'none', kind: 'out',
-        cat: 'other', created: new Date(now).toISOString(), updated: now });
+        cat: 'other', ...(d.cur === 'EUR' ? { cur: d.cur, orig: d.orig, rate: d.rate, rateDate: d.rateDate } : {}),
+        created: new Date(now).toISOString(), updated: now });
       debts = debts.filter(x => x.id !== d.id); deleted[d.id] = now;
       save(); render(); setMsg('Dluh „' + d.name + '“ splacen, ' + fmt(d.amount) + ' odečteno ze zůstatku.');
     });
@@ -1234,7 +1358,7 @@ function renderSync() {
   const state = !syncCode ? 'vypnuto' : syncBusy ? 'synchronizuji…' : syncErr ? 'chyba' : 'zapnuto';
   $('syncState').textContent = state;
   const pill = $('syncPill');
-  pill.textContent = !syncCode ? 'Synchronizace vypnutá' : syncBusy ? 'Synchronizuji…' : syncErr ? 'Chyba synchronizace' : 'Synchronizováno';
+  pill.textContent = !syncCode ? 'Sync vypnutá' : syncBusy ? 'Synchronizuji…' : syncErr ? 'Chyba sync' : 'Synchronizováno';
   pill.classList.toggle('on', !!syncCode && !syncErr); pill.classList.toggle('err', !!syncCode && !!syncErr && !syncBusy);
   if (!syncCode) return;
   $('syncCode').textContent = syncCode;
@@ -1245,7 +1369,14 @@ function renderSync() {
   m.classList.toggle('err', !!syncErr && !syncBusy);
 }
 
-$('syncPill').onclick = () => $('sync').scrollIntoView({ behavior: 'smooth', block: 'start' });
+function showSettings(on) {
+  document.querySelector('main').classList.toggle('in-settings', on);
+  $('gearBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+  window.scrollTo(0, 0);
+}
+$('gearBtn').onclick = () => showSettings(!document.querySelector('main').classList.contains('in-settings'));
+$('backBtn').onclick = () => showSettings(false);
+$('syncPill').onclick = () => { showSettings(true); $('sync').scrollIntoView({ block: 'start' }); };
 $('newCode').onclick = () => { setSyncCode(genSyncCode()); syncLast = 0; syncNow(); };
 $('joinBtn').onclick = async () => {
   const code = $('codeIn').value.trim().toLowerCase().replace(/\s+/g, '');
