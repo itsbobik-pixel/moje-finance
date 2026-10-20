@@ -22,6 +22,7 @@
   --plus: #0c9f67; --plus-soft: #dcf7ea; --minus: #f2445a; --minus-soft: #ffe3e7;
   --pop: #ffcf3f; --pink: #ff6fb5; --cyan: #3cc8f0;
   --c1: #ff7a59; --c2: #ffb938; --c3: #2fcf8e; --c4: #3cb4f0; --c5: #9b7bff; --c6: #ff6fb5;
+  --c7: #a8e05f; --c8: #3dd6c6; --c9: #d6d2e6; --c10: #ffa94d; --c11: #f7c4a5; --c12: #ffc8e1; --c13: #8fa8ff;
   --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
   --body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
@@ -99,7 +100,24 @@ main, .card, .list, .settings { grid-template-columns: minmax(0, 1fr) }
 .acct-seg input:focus-visible + label { outline: 2px solid var(--hero-fg); outline-offset: 1px }
 .warn { justify-self: start; max-width: 100%; text-align: left; background: var(--hero-fg); color: var(--minus); border: 0; border-radius: 14px; padding: 7px 12px; font: inherit; font-size: .84rem; font-weight: 600; cursor: pointer }
 .warn:focus-visible { outline: 2px solid var(--hero-fg); outline-offset: 2px }
-#list .item { cursor: pointer }
+.tile-body .item { cursor: pointer }
+.overview { display: grid; gap: 10px }
+.overview > .msg:empty { display: none }
+.ov-sum { margin: -4px 0 0; font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums }
+.period-seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 99px }
+.period-seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; padding: 5px 11px; border-radius: 99px; cursor: pointer }
+.period-seg button[aria-pressed="true"] { background: var(--fg); color: var(--surface) }
+.period-seg button:focus-visible { outline: 2px solid var(--hero); outline-offset: 1px }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+.tile { background: var(--tc); color: #18142e; border-radius: 20px; overflow: hidden; min-width: 0 }
+.tile.open { grid-column: 1 / -1 }
+.tile-head { width: 100%; display: grid; gap: 2px; text-align: left; background: transparent; border: 0; border-radius: 20px; padding: 14px 16px; color: inherit; font: inherit; cursor: pointer }
+.tile-head:focus-visible { outline: 2px solid #18142e; outline-offset: -4px }
+.tile-head .tn { font-size: .84rem; font-weight: 600 }
+.tile-head .ts { white-space: nowrap; font-family: var(--display); font-size: clamp(1rem, 5vw, 1.3rem); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums }
+.tile-head .tc { font-size: .74rem; opacity: .75 }
+.tile-body { display: grid; gap: 6px; padding: 0 8px 8px }
+.tile-body .item { background: var(--surface); color: var(--fg) }
 .row-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .84rem; color: var(--muted) }
 .row-acts .ghost { padding: 7px 12px; font-size: .84rem }
 .debt-item .acts { display: flex; gap: 4px }
@@ -328,15 +346,19 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     <p class="msg" id="stmtMsg"></p>
   </section>
 
-  <section class="card settings" id="breakdown" hidden>
-    <div class="head"><h2>Výdaje tento měsíc</h2><span class="total" id="bdTotal"></span></div>
-    <div class="bars" id="bars"></div>
-  </section>
-
-  <section style="display:grid;gap:10px">
-    <div class="head"><h2>Platby</h2><span class="count" id="count"></span></div>
+  <section class="overview" id="overview">
+    <div class="head">
+      <h2>Přehled</h2>
+      <div class="period-seg" id="periodSeg" role="group" aria-label="Období">
+        <button type="button" data-per="day">Dnes</button>
+        <button type="button" data-per="week">Týden</button>
+        <button type="button" data-per="month">Měsíc</button>
+        <button type="button" data-per="year">Rok</button>
+      </div>
+    </div>
+    <p class="ov-sum" id="ovSum"></p>
     <p class="msg" id="msg"></p>
-    <div class="list" id="list"></div>
+    <div class="tiles" id="tiles"></div>
   </section>
 
   <section class="card settings" id="sync" data-view="settings">
@@ -471,24 +493,20 @@ function render() {
   }
   renderDebts();
   renderUpcoming();
-  renderBreakdown();
   renderCoverage();
 
-  const list = $('list');
-  list.replaceChildren();
-  $('count').textContent = payments.length ? payments.length + (payments.length === 1 ? ' platba' : payments.length < 5 ? ' platby' : ' plateb') : '';
-  if (!payments.length) {
-    const e = document.createElement('div'); e.className = 'empty';
-    e.textContent = 'Zatím žádné platby. První přidáš formulářem výše.';
-    list.append(e); return;
-  }
-  [...payments].sort((a, b) => b.date.localeCompare(a.date)).forEach(p => {
-    const row = document.createElement('div'); row.className = 'item';
+  renderOverview();
+}
+
+// jeden řádek platby (v rozbalené kategorii); shown = datum výskytu u opakované platby
+function paymentRow(p, shown) {
+  const t = today();
+    const row = document.createElement('div'); row.className = 'item pay';
     const av = document.createElement('div'); av.className = 'avatar'; av.setAttribute('aria-hidden', 'true');
     av.textContent = (p.name.trim()[0] || '?').toUpperCase(); av.style.background = colorFor(p.name);
     const name = document.createElement('div'); name.className = 'name'; name.textContent = p.name;
     const meta = document.createElement('div'); meta.className = 'meta';
-    const d = document.createElement('span'); d.textContent = parse(p.date).toLocaleDateString('cs-CZ');
+    const d = document.createElement('span'); d.textContent = (shown || parse(p.date)).toLocaleDateString('cs-CZ');
     meta.append(d);
     if (p.repeat !== 'none') {
       const c = document.createElement('span'); c.className = 'tag rep'; c.textContent = '↻ ' + REPEAT[p.repeat]; meta.append(c);
@@ -538,9 +556,76 @@ function render() {
       if (e.target.closest('button, select, a, input, label')) return;
       openRow = openRow === p.id ? null : p.id; render();
     };
-    list.append(row);
-  });
+    return row;
 }
+
+// ── Přehled: barevné dlaždice podle kategorií za Dnes / Týden / Měsíc / Rok ──
+let period = 'month', openCat = null;
+try { period = localStorage.getItem('moje-finance:period') || 'month'; } catch {}
+function periodRange(per) {
+  const t = today();
+  const from = per === 'day' ? t
+    : per === 'week' ? new Date(t.getFullYear(), t.getMonth(), t.getDate() - (t.getDay() + 6) % 7)
+    : per === 'month' ? new Date(t.getFullYear(), t.getMonth(), 1)
+    : new Date(t.getFullYear(), 0, 1);
+  return { from, to: t };
+}
+function renderOverview() {
+  document.querySelectorAll('#periodSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.per === period ? 'true' : 'false'));
+  const { from, to } = periodRange(period);
+  const entries = [];
+  for (const p of payments) {
+    const start = parse(p.date);
+    if (p.repeat === 'none') { if (start >= from && start <= to) entries.push({ p, date: start }); continue; }
+    for (let n = countUntil(p, dayBefore(from)); n < 2000; n++) {
+      const o = occ(start, p.repeat, n);
+      if (o > to) break;
+      if (o >= from) entries.push({ p, date: o });
+    }
+  }
+  const groups = {};
+  for (const e of entries) (groups[catOf(e.p)] = groups[catOf(e.p)] || []).push(e);
+  const real = e => !['transfer', 'adjust'].includes(catOf(e.p));
+  const out = entries.filter(e => e.p.kind === 'out' && real(e)).reduce((x, e) => x + e.p.amount, 0);
+  const inc = entries.filter(e => e.p.kind === 'in' && real(e)).reduce((x, e) => x + e.p.amount, 0);
+  $('ovSum').textContent = 'Výdaje −' + fmt(out) + ' · Příjmy +' + fmt(inc);
+  const sumOf = list => list.reduce((x, e) => x + signed(e.p), 0);
+  const LAST = ['income', 'transfer', 'adjust']; // příjmy a převody až za výdaji
+  const cats = Object.keys(groups).sort((x, y) => (LAST.indexOf(x) - LAST.indexOf(y)) || (Math.abs(sumOf(groups[y])) - Math.abs(sumOf(groups[x]))));
+  if (openCat && !groups[openCat]) openCat = null;
+  if (!cats.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.style.gridColumn = '1 / -1';
+    e.textContent = payments.length ? 'V tomhle období nemáš žádné platby.' : 'Zatím žádné platby. Nahraj výpis v Nastavení (⚙) nebo přidej peníze nahoře.';
+    $('tiles').replaceChildren(e); return;
+  }
+  $('tiles').replaceChildren(...cats.map(cat => {
+    const list = groups[cat].sort((x, y) => y.date - x.date);
+    const total = sumOf(list), open = openCat === cat;
+    const tile = document.createElement('div'); tile.className = 'tile' + (open ? ' open' : '');
+    tile.style.setProperty('--tc', 'var(' + CATS[cat].color + ')');
+    const head = document.createElement('button'); head.type = 'button'; head.className = 'tile-head';
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const tn = document.createElement('span'); tn.className = 'tn'; tn.textContent = CATS[cat].name;
+    const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = (total > 0 ? '+' : total < 0 ? '−' : '') + fmt(Math.abs(total));
+    const tc = document.createElement('span'); tc.className = 'tc';
+    tc.textContent = list.length + (list.length === 1 ? ' platba' : list.length < 5 ? ' platby' : ' plateb') + (open ? ' · sbalit' : '');
+    head.append(tn, ts, tc);
+    head.onclick = () => { openCat = open ? null : cat; openRow = null; render(); };
+    tile.append(head);
+    if (open) {
+      const bodyEl = document.createElement('div'); bodyEl.className = 'tile-body';
+      bodyEl.append(...list.map(e => paymentRow(e.p, e.date)));
+      tile.append(bodyEl);
+    }
+    return tile;
+  }));
+}
+document.querySelectorAll('#periodSeg button').forEach(b => b.addEventListener('click', () => {
+  period = b.dataset.per; openCat = null; openRow = null;
+  try { localStorage.setItem('moje-finance:period', period); } catch {}
+  render();
+}));
+
 
 function setMsg(text, err) { $('msg').textContent = text; $('msg').classList.toggle('err', !!err); }
 
@@ -871,20 +956,20 @@ function renderDebts() {
 
 // ── Kategorie: naučená pravidla, pak klíčová slova (bez diakritiky) ──
 const CATS = {
-  food:      { name: 'Potraviny', color: '--c3', kw: ['albert', 'lidl', 'billa', 'kaufland', 'tesco', 'penny', 'globus', 'rohlik', 'kosik', 'makro', 'coop', 'zabka', 'norma', 'hruska', 'potraviny', 'pekarna', 'reznictvi', 'spar', 'flop', 'tamda', 'esselunga', 'conad', 'carrefour', 'crf exp', 'basko', 'eurospin', 'supermerc', 'supermarket', 'minimarket', 'mercato', "in's mercato", 'crai', 'despar', 'pam', 'lidl', 'coop liguria', 'coop ligria'] },
+  food:      { name: 'Potraviny', color: '--c7', kw: ['albert', 'lidl', 'billa', 'kaufland', 'tesco', 'penny', 'globus', 'rohlik', 'kosik', 'makro', 'coop', 'zabka', 'norma', 'hruska', 'potraviny', 'pekarna', 'reznictvi', 'spar', 'flop', 'tamda', 'esselunga', 'conad', 'carrefour', 'crf exp', 'basko', 'eurospin', 'supermerc', 'supermarket', 'minimarket', 'mercato', "in's mercato", 'crai', 'despar', 'pam', 'lidl', 'coop liguria', 'coop ligria'] },
   eat:       { name: 'Restaurace a kavárny', color: '--c1', kw: ['restaurace', 'restaurant', 'bistro', 'kavarna', 'cafe', 'coffee', 'pizz', 'mcdonald', 'kfc', 'burger', 'starbucks', 'costa', 'wolt', 'foodora', 'damejidlo', 'bageterie', 'sushi', 'kebab', 'hospoda', 'pivnice', 'bar', 'gelat', 'pasticceri', 'caffe', 'caffetteri', 'trattoria', 'osteria', 'ristorante', 'panific', 'focacc', 'doner', 'delikomat', 'foodex', 'mangiami', 'mister coffee'] },
   transport: { name: 'Doprava', color: '--c4', kw: ['benzina', 'shell', 'omv', 'mol', 'orlen', 'eurooil', 'cerpaci', 'ceske drahy', 'cd.cz', 'regiojet', 'leo express', 'dpp', 'litacka', 'pid', 'uber', 'bolt', 'liftago', 'parkovani', 'parking', 'dalnicni', 'edalnice', 'flixbus', 'ryanair', 'wizz', 'smartwings', 'bit mobility', 'trenitalia', 'italo', 'mycicero', 'my cicero', 'atc', 'autolinee', 'omio', 'terravision', 'idsjmk', 'cd', 'tper'] },
   home:      { name: 'Bydlení a energie', color: '--c5', kw: ['najem', 'najemne', 'pre', 'cez', 'innogy', 'eon', 'e.on', 'plynarensk', 'vodarn', 'pvk', 'svj', 'elektrin', 'zalohy', 'energie', 'bytove druzstvo', 'ikea', 'hornbach', 'obi', 'bauhaus', 'mountfield'] },
   subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github', 'contabo', 'skool', 'hostinger', 'claude', 'cloudflare'] },
-  phone:     { name: 'Telefon a internet', color: '--c4', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink', 'tim', 'iliad', 'windtre', 'wind tre', 'ho. mobile'] },
-  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'dr. max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport', 'farmacia', 'parafarmacia'] },
+  phone:     { name: 'Telefon a internet', color: '--c10', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink', 'tim', 'iliad', 'windtre', 'wind tre', 'ho. mobile'] },
+  health:    { name: 'Zdraví a drogerie', color: '--c8', kw: ['lekarna', 'dr.max', 'dr. max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport', 'farmacia', 'parafarmacia'] },
   shop:      { name: 'Nákupy', color: '--c2', kw: ['alza', 'mall.cz', 'czc', 'datart', 'amazon', 'zalando', 'aboutyou', 'about you', 'h&m', 'zara', 'reserved', 'decathlon', 'sportisimo', 'temu', 'shein', 'aliexpress', 'allegro', 'kik', 'pepco', 'action', 'tedi', 'vinted', 'obi', 'risparmio', 'terranova', 'pepco'] },
-  fun:       { name: 'Zábava a cestování', color: '--c5', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'dropticket', 'ticketone', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
-  transfer:  { name: 'Převody mezi účty', color: '--c4', kw: ['dobiti', 'smeneno na', 'smeneno z', 'top-up', 'topup', 'prevod na revolut', 'prevod z revolutu', 'prevod na air bank', 'prevod z air bank'] },
-  cash:      { name: 'Hotovost a převody', color: '--c2', kw: ['bankomat', 'atm', 'vyber hotovosti', 'vyber z bankomatu', 'prevod', 'revolut', 'trvaly prikaz'] },
+  fun:       { name: 'Zábava a cestování', color: '--c13', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'dropticket', 'ticketone', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
+  transfer:  { name: 'Převody mezi účty', color: '--c9', kw: ['dobiti', 'smeneno na', 'smeneno z', 'top-up', 'topup', 'prevod na revolut', 'prevod z revolutu', 'prevod na air bank', 'prevod z air bank'] },
+  cash:      { name: 'Hotovost a převody', color: '--c11', kw: ['bankomat', 'atm', 'vyber hotovosti', 'vyber z bankomatu', 'prevod', 'revolut', 'trvaly prikaz'] },
   income:    { name: 'Příjem', color: '--c3', kw: ['busta paga', 'mzda', 'vyplata', 'urad prace', 'up brno'] },
-  adjust:    { name: 'Úprava zůstatku', color: '--c4', kw: [] },
-  other:     { name: 'Ostatní', color: '--c6', kw: [] },
+  adjust:    { name: 'Úprava zůstatku', color: '--c9', kw: [] },
+  other:     { name: 'Ostatní', color: '--c12', kw: [] },
 };
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
