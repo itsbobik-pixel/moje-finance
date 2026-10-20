@@ -73,6 +73,12 @@ form { display: grid; gap: 12px }
 input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 10px 12px; width: 100%; min-width: 0 }
 input:focus, select:focus { border-color: var(--hero); outline: none }
 button:focus-visible, .sync-pill:focus-visible, label.btn:focus-visible { outline: 2px solid var(--hero); outline-offset: 2px }
+.money { display: flex; gap: 6px }
+.money input { flex: 1 1 auto }
+.money select { flex: 0 0 64px; font-weight: 600; text-align: center; padding-inline: 8px }
+.fx { margin: -4px 0 0; font-size: .84rem; color: var(--hero); font-weight: 500; background: var(--bg); border-radius: 10px; padding: 7px 11px }
+.fx.err { color: var(--minus) }
+.tag.fxtag { background: var(--bg); color: var(--muted); font-weight: 500 }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--bg); border-radius: 14px; padding: 4px }
 .seg input { position: absolute; opacity: 0; pointer-events: none }
 .seg label { text-align: center; padding: 8px; cursor: pointer; color: var(--muted); font-weight: 600; border-radius: 10px; transition: background .15s, color .15s }
@@ -154,14 +160,22 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
       </div>
       <div class="row">
         <div class="field">
-          <label for="f-amount">Částka (Kč)</label>
-          <input id="f-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required>
+          <label for="f-amount">Částka</label>
+          <div class="money">
+            <input id="f-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required>
+            <select id="f-cur" aria-label="Měna">
+              <option value="CZK">Kč</option>
+              <option value="EUR">€</option>
+              <option value="USD">$</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <label for="f-date">Datum</label>
           <input id="f-date" type="date" required>
         </div>
       </div>
+      <p class="fx" id="fx" hidden></p>
       <div class="field">
         <span class="flabel" id="rep-label">Opakuje se?</span>
         <div class="chips" role="radiogroup" aria-labelledby="rep-label">
@@ -315,6 +329,12 @@ function render() {
     } else if (parse(p.date) > t) {
       const c = document.createElement('span'); c.className = 'tag plan'; c.textContent = 'naplánováno'; meta.append(c);
     }
+    if (p.cur && p.cur !== 'CZK' && typeof p.orig === 'number') {
+      const c = document.createElement('span'); c.className = 'tag fxtag';
+      c.textContent = fmtCur(p.orig, p.cur) + ' · kurz ' + fmtRate(p.rate);
+      c.title = 'Kurz ECB z ' + parse(p.rateDate).toLocaleDateString('cs-CZ');
+      meta.append(c);
+    }
     const right = document.createElement('div'); right.className = 'right';
     const amt = document.createElement('div'); amt.className = 'amt ' + p.kind;
     amt.textContent = (p.kind === 'in' ? '+' : '−') + fmt(p.amount);
@@ -336,19 +356,63 @@ function render() {
 
 function setMsg(text, err) { $('msg').textContent = text; $('msg').classList.toggle('err', !!err); }
 
-$('form').addEventListener('submit', e => {
+// ── Měny: kurz ECB přes frankfurter.dev, uloží se k platbě a dál se počítá v Kč ──
+const fmtCur = (n, cur) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: cur, maximumFractionDigits: 2 }).format(n);
+const fmtRate = r => new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 3 }).format(r);
+const rateCache = {};
+function getRate(cur, date) {
+  const d = !date || date > iso(today()) ? 'latest' : date;
+  const k = cur + ':' + d;
+  if (!rateCache[k]) rateCache[k] = fetch('https://api.frankfurter.dev/v1/' + d + '?base=' + cur + '&symbols=CZK')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(j => { if (!(j.rates && j.rates.CZK > 0)) throw new Error('bez kurzu'); return { rate: j.rates.CZK, date: j.date }; })
+    .catch(e => { delete rateCache[k]; throw e; });
+  return rateCache[k];
+}
+const readAmount = () => Math.round(parseFloat($('f-amount').value.replace(',', '.')) * 100) / 100;
+let fxSeq = 0;
+async function updateFx() {
+  const cur = $('f-cur').value, el = $('fx'), seq = ++fxSeq;
+  if (cur === 'CZK') { el.hidden = true; return; }
+  el.hidden = false; el.classList.remove('err');
+  try {
+    const r = await getRate(cur, $('f-date').value);
+    if (seq !== fxSeq) return;
+    const a = readAmount();
+    el.textContent = (a > 0 ? '≈ ' + fmt(a * r.rate) + ' · ' : '') + '1 ' + $('f-cur').selectedOptions[0].text + ' = ' + fmtRate(r.rate) + ' Kč (ECB, ' + parse(r.date).toLocaleDateString('cs-CZ') + ')';
+  } catch {
+    if (seq !== fxSeq) return;
+    el.textContent = 'Kurz se nepodařilo načíst. Zkontroluj připojení, nebo zadej částku v Kč.'; el.classList.add('err');
+  }
+}
+['f-amount', 'f-cur', 'f-date'].forEach(id => $(id).addEventListener('input', updateFx));
+$('f-cur').addEventListener('change', updateFx);
+
+$('form').addEventListener('submit', async e => {
   e.preventDefault();
   const name = $('f-name').value.trim();
-  const amount = Math.round(parseFloat($('f-amount').value.replace(',', '.')) * 100) / 100;
+  const orig = readAmount();
   const date = $('f-date').value;
+  const cur = $('f-cur').value;
   if (!name) return setMsg('Doplň popis platby.', true);
-  if (!(amount > 0)) return setMsg('Zadej kladnou částku.', true);
+  if (!(orig > 0)) return setMsg('Zadej kladnou částku.', true);
   if (!date) return setMsg('Vyber datum.', true);
-  const data = { name, amount, date, repeat: document.querySelector('input[name=repeat]:checked').value,
+  const data = { name, amount: orig, date, repeat: document.querySelector('input[name=repeat]:checked').value,
     kind: document.querySelector('input[name=kind]:checked').value, created: new Date().toISOString() };
+  if (cur !== 'CZK') {
+    $('add').disabled = true; setMsg('Načítám kurz…');
+    try {
+      const r = await getRate(cur, date);
+      Object.assign(data, { amount: Math.round(orig * r.rate * 100) / 100, cur, orig, rate: r.rate, rateDate: r.date });
+    } catch {
+      $('add').disabled = false;
+      return setMsg('Kurz se nepodařilo načíst, platba se neuložila. Zkus to znovu, nebo zadej částku v Kč.', true);
+    }
+    $('add').disabled = false;
+  }
   payments.push({ id: newId(), ...data, updated: Date.now() }); save(); render();
-  $('f-name').value = ''; $('f-amount').value = ''; $('r-none').checked = true;
-  setMsg('Přidáno.'); $('f-name').focus();
+  $('f-name').value = ''; $('f-amount').value = ''; $('r-none').checked = true; $('f-cur').value = 'CZK'; updateFx();
+  setMsg(cur === 'CZK' ? 'Přidáno.' : 'Přidáno, převedeno na ' + fmt(data.amount) + '.'); $('f-name').focus();
 });
 
 // ── Skutečný zůstatek na účtu ──
