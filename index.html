@@ -218,10 +218,10 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
 
   <section class="card settings" id="importCard">
     <h2>Import výpisu z banky</h2>
-    <p class="msg">V internetovém bankovnictví si stáhni výpis jako CSV a nahraj ho sem. Appka najde datum, částku a popis, platby roztřídí do kategorií a ty, které už máš, přeskočí.</p>
+    <p class="msg">Nahraj PDF výpis z Revolutu nebo Air Bank, případně CSV z jakékoli banky. Appka najde datum, částku a popis, platby roztřídí do kategorií a ty, které už máš, přeskočí.</p>
     <div class="actions">
-      <label class="primary btn" for="stmt" tabindex="0" id="stmtLabel">Nahrát výpis (CSV)</label>
-      <input type="file" id="stmt" accept=".csv,text/csv,.txt" hidden>
+      <label class="primary btn" for="stmt" tabindex="0" id="stmtLabel">Nahrát výpis (PDF nebo CSV)</label>
+      <input type="file" id="stmt" accept=".pdf,application/pdf,.csv,text/csv,.txt" hidden>
     </div>
     <div class="preview" id="stmtPreview" hidden>
       <p class="msg" id="stmtSummary" style="color:var(--fg)"></p>
@@ -497,17 +497,18 @@ $('anchorIn').addEventListener('keydown', e => { if (e.key === 'Enter') saveHero
 
 // ── Kategorie: naučená pravidla, pak klíčová slova (bez diakritiky) ──
 const CATS = {
-  food:      { name: 'Potraviny', color: '--c3', kw: ['albert', 'lidl', 'billa', 'kaufland', 'tesco', 'penny', 'globus', 'rohlik', 'kosik', 'makro', 'coop', 'zabka', 'norma', 'hruska', 'potraviny', 'pekarna', 'reznictvi', 'spar', 'flop', 'tamda'] },
-  eat:       { name: 'Restaurace a kavárny', color: '--c1', kw: ['restaurace', 'restaurant', 'bistro', 'kavarna', 'cafe', 'coffee', 'pizz', 'mcdonald', 'kfc', 'burger', 'starbucks', 'costa', 'wolt', 'foodora', 'damejidlo', 'bageterie', 'sushi', 'kebab', 'hospoda', 'pivnice', 'bar'] },
-  transport: { name: 'Doprava', color: '--c4', kw: ['benzina', 'shell', 'omv', 'mol', 'orlen', 'eurooil', 'cerpaci', 'ceske drahy', 'cd.cz', 'regiojet', 'leo express', 'dpp', 'litacka', 'pid', 'uber', 'bolt', 'liftago', 'parkovani', 'parking', 'dalnicni', 'edalnice', 'flixbus', 'ryanair', 'wizz', 'smartwings'] },
+  food:      { name: 'Potraviny', color: '--c3', kw: ['albert', 'lidl', 'billa', 'kaufland', 'tesco', 'penny', 'globus', 'rohlik', 'kosik', 'makro', 'coop', 'zabka', 'norma', 'hruska', 'potraviny', 'pekarna', 'reznictvi', 'spar', 'flop', 'tamda', 'esselunga', 'conad', 'carrefour', 'crf exp', 'basko', 'eurospin', 'supermerc', 'supermarket', 'minimarket', 'mercato', "in's mercato", 'crai', 'despar', 'pam', 'lidl', 'coop liguria', 'coop ligria'] },
+  eat:       { name: 'Restaurace a kavárny', color: '--c1', kw: ['restaurace', 'restaurant', 'bistro', 'kavarna', 'cafe', 'coffee', 'pizz', 'mcdonald', 'kfc', 'burger', 'starbucks', 'costa', 'wolt', 'foodora', 'damejidlo', 'bageterie', 'sushi', 'kebab', 'hospoda', 'pivnice', 'bar', 'gelat', 'pasticceri', 'caffe', 'caffetteri', 'trattoria', 'osteria', 'ristorante', 'panific', 'focacc', 'doner', 'delikomat', 'foodex', 'mangiami', 'mister coffee'] },
+  transport: { name: 'Doprava', color: '--c4', kw: ['benzina', 'shell', 'omv', 'mol', 'orlen', 'eurooil', 'cerpaci', 'ceske drahy', 'cd.cz', 'regiojet', 'leo express', 'dpp', 'litacka', 'pid', 'uber', 'bolt', 'liftago', 'parkovani', 'parking', 'dalnicni', 'edalnice', 'flixbus', 'ryanair', 'wizz', 'smartwings', 'bit mobility', 'trenitalia', 'italo', 'mycicero', 'my cicero', 'atc', 'autolinee', 'omio', 'terravision', 'idsjmk', 'cd', 'tper'] },
   home:      { name: 'Bydlení a energie', color: '--c5', kw: ['najem', 'najemne', 'pre', 'cez', 'innogy', 'eon', 'e.on', 'plynarensk', 'vodarn', 'pvk', 'svj', 'elektrin', 'zalohy', 'energie', 'bytove druzstvo', 'ikea', 'hornbach', 'obi', 'bauhaus', 'mountfield'] },
-  subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github'] },
-  phone:     { name: 'Telefon a internet', color: '--c4', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink'] },
-  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport'] },
-  shop:      { name: 'Nákupy', color: '--c2', kw: ['alza', 'mall.cz', 'czc', 'datart', 'amazon', 'zalando', 'aboutyou', 'about you', 'h&m', 'zara', 'reserved', 'decathlon', 'sportisimo', 'temu', 'shein', 'aliexpress', 'allegro', 'kik', 'pepco', 'action', 'tedi', 'vinted'] },
-  fun:       { name: 'Zábava a cestování', color: '--c5', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
+  subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github', 'contabo', 'skool', 'hostinger', 'claude'] },
+  phone:     { name: 'Telefon a internet', color: '--c4', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink', 'tim', 'iliad', 'windtre', 'wind tre', 'ho. mobile'] },
+  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport', 'farmacia', 'parafarmacia'] },
+  shop:      { name: 'Nákupy', color: '--c2', kw: ['alza', 'mall.cz', 'czc', 'datart', 'amazon', 'zalando', 'aboutyou', 'about you', 'h&m', 'zara', 'reserved', 'decathlon', 'sportisimo', 'temu', 'shein', 'aliexpress', 'allegro', 'kik', 'pepco', 'action', 'tedi', 'vinted', 'obi', 'risparmio', 'terranova', 'pepco'] },
+  fun:       { name: 'Zábava a cestování', color: '--c5', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'dropticket', 'ticketone', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
+  transfer:  { name: 'Převody mezi účty', color: '--c4', kw: ['dobiti', 'smeneno na', 'smeneno z', 'top-up', 'topup', 'prevod na revolut', 'prevod z revolutu', 'prevod na air bank', 'prevod z air bank'] },
   cash:      { name: 'Hotovost a převody', color: '--c2', kw: ['bankomat', 'atm', 'vyber hotovosti', 'vyber z bankomatu', 'prevod', 'revolut', 'trvaly prikaz'] },
-  income:    { name: 'Příjem', color: '--c3', kw: [] },
+  income:    { name: 'Příjem', color: '--c3', kw: ['busta paga', 'mzda', 'vyplata', 'urad prace', 'up brno'] },
   other:     { name: 'Ostatní', color: '--c6', kw: [] },
 };
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -520,6 +521,7 @@ function categorize(text, kind) {
   const t = norm(text);
   const learned = rules[ruleKey(text)] || Object.entries(rules).find(([k]) => k.length >= 4 && t.includes(k))?.[1];
   if (learned && CATS[learned.cat]) return learned.cat;
+  if (KW.some(([c, re]) => c === 'transfer' && re.test(t))) return 'transfer';
   if (kind === 'in') return 'income';
   for (const [cat, re] of KW) if (re.test(t)) return cat;
   return 'other';
@@ -550,7 +552,7 @@ function renderBreakdown() {
   const end = new Date(y, m + 1, 0), prevEnd = new Date(y, m, 0);
   const sums = {};
   for (const p of payments) {
-    if (p.kind !== 'out') continue;
+    if (p.kind !== 'out' || catOf(p) === 'transfer') continue;
     const n = countUntil(p, end) - countUntil(p, prevEnd);
     if (n > 0) sums[catOf(p)] = (sums[catOf(p)] || 0) + n * p.amount;
   }
@@ -650,6 +652,164 @@ function parseStatement(text) {
   }
   return out;
 }
+// ── PDF výpisy: Revolut a Air Bank (text z pdf.js, po řádcích) ──
+const normP = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const czNum = s => parseFloat(String(s).replace(/[\s ]/g, '').replace(/[−–]/g, '-').replace(',', '.'));
+const AMT = '-?\\d{1,3}(?:[ \\u00a0]\\d{3})*,\\d{2}';
+const isoD = (d, m, y) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+
+function parseRevolutPdf(text) {
+  const lines = text.split('\n');
+  const cur = (text.match(/Výpis v ([A-Z]{3})/) || [])[1] || 'EUR';
+  const si = lines.findIndex(l => /^Souhrn zůstatku/.test(l));
+  const holder = si > 0 ? lines[si - 1] : '';
+  const SYM = '\\s?(?:€|\\$|£|Kč|CZK|[A-Z]{3})';
+  const total = text.match(new RegExp('^Celkem (' + AMT + ')' + SYM, 'm'));
+  let prev = total ? czNum(total[1]) : null;
+  const txRe = new RegExp('^(\\d{1,2})\\. (\\d{1,2})\\. (\\d{4}) (.+?) (' + AMT + ')' + SYM + ' (' + AMT + ')' + SYM + '$');
+  const rows = [];
+  let cur_ = null;
+  for (const l of lines) {
+    if (/^Vráceno z /.test(l)) break; // vrácené (zrušené) transakce na konci výpisu
+    const m = l.match(txRe);
+    if (m) {
+      const bal = czNum(m[6]), groups = m[5].split(/[  ]/);
+      let name = m[4].trim(), amount = czNum(m[5]), kind = null;
+      // číslo na konci popisu (např. „Via Fiume 37“) se může slít s částkou → vyber variantu, která sedí na zůstatek
+      for (let k = 0; k < groups.length && prev !== null; k++) {
+        const a = czNum(groups.slice(k).join(''));
+        const kk = Math.abs(prev + a - bal) < 0.005 ? 'in' : Math.abs(prev - a - bal) < 0.005 ? 'out' : null;
+        if (kk) { amount = a; kind = kk; if (k) name = name + ' ' + groups.slice(0, k).join(' '); break; }
+      }
+      if (!kind) kind = /^(platba od|dobiti|smeneno na|vraceni|refund)/.test(normP(name)) ? 'in' : 'out';
+      prev = bal;
+      cur_ = { date: isoD(m[1], m[2], m[3]), amount, kind, name, details: [], cur };
+      rows.push(cur_);
+    } else if (cur_ && /^(Komu|Od|Reference): /.test(l)) cur_.details.push(l.replace(/^(Komu|Od|Reference): /, ''));
+  }
+  const h = normP(holder);
+  for (const r of rows) {
+    r.text = [r.name, ...r.details].join(' ');
+    const t = normP(r.text);
+    if (/^(dobiti|smeneno na|smeneno z)/.test(normP(r.name)) || (h.length > 4 && (t.startsWith('to ' + h) || r.details.some(d => normP(d).startsWith(h))))) {
+      r.transfer = true;
+      r.name = r.kind === 'in' ? 'Převod na Revolut' : 'Převod z Revolutu';
+    }
+    delete r.details;
+  }
+  return { bank: 'Revolut', holder, cur, rows };
+}
+
+function parseAirBankPdf(text) {
+  const lines = text.split('\n');
+  const holder = lines[0] || '';
+  const cur = (text.match(/^Měna: ([A-Z]{3})/m) || [])[1] || 'CZK';
+  const dRe = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+  const endRe = new RegExp('^(.*?)\\s*(' + AMT + ') (' + AMT + ')$');
+  const rows = [];
+  for (let i = 0; i < lines.length - 2; i++) {
+    if (!dRe.test(lines[i]) || !dRe.test(lines[i + 1])) continue;
+    const exec = lines[i + 1].match(dRe);
+    const type = lines[i + 2];
+    const body = [];
+    let end = null, j = i + 3;
+    for (; j < lines.length && j < i + 40; j++) {
+      if (dRe.test(lines[j]) || lines[j] === '<<PAGE>>') break;
+      const m = lines[j].match(endRe);
+      if (m) { end = m; if (m[1]) body.push(m[1]); break; }
+      body.push(lines[j]);
+    }
+    if (!end) continue;
+    i = j;
+    if (body.length) body[0] = body[0].replace(/^\d{6,}\s*/, ''); // kód transakce
+    const parts = body.filter(Boolean);
+    const amount = czNum(end[2]) - Math.abs(czNum(end[3]));
+    const acctRe = /\d[\d-]*\s*\/\s*\d{4}/;
+    let name = '', ttype = normP(type);
+    if (/kartou/.test(ttype)) {
+      const ci = parts.findIndex(p => /\*{3,}/.test(p));
+      const raw = (parts[ci + 1] || '').replace(/^\d+\s*-\s*/, '').split(',')[0];
+      // obchodník bez adresy („LIDL 1645 VIA FONTEVIVO“ → „LIDL 1645“), pokud po oříznutí něco zbyde
+      const cut = raw.split(/\s(?:via|viale|corso|piazza|ul\.|ulice|nam\.|namesti|str\.|strasse|street|avenue|ave)(?:\s|\.|$)/i)[0].replace(/\s+\d[\d/]*$/, '');
+      name = cut.length >= 4 ? cut : raw;
+      if (name.length > 3 && name === name.toUpperCase()) name = name.toLowerCase().replace(/(^|[\s.*-])(\p{L})/gu, (a, b, c) => b + c.toUpperCase());
+    } else {
+      const ai = parts.findIndex(p => acctRe.test(p));
+      const before = ai > 0 ? parts.slice(0, ai) : [];
+      const after = parts.slice(ai + 1).filter(p => !/^(VS|KS|SS)\d*$/i.test(p));
+      name = before[0] || after[0] || (type + (ai >= 0 ? ' ' + parts[ai].match(acctRe)[0] : ''));
+    }
+    name = name.replace(/\s+/g, ' ').trim().slice(0, 80) || type;
+    const r = { date: isoD(exec[1], exec[2], exec[3]), amount: Math.abs(amount), kind: amount > 0 ? 'in' : 'out', name, text: [type, ...parts].join(' '), cur };
+    const h = normP(holder);
+    if ((!/kartou/.test(ttype) && h.length > 4 && normP(name).includes(h)) || /revolut/.test(normP(r.text))) {
+      r.transfer = true;
+      r.name = r.kind === 'in' ? 'Převod na Air Bank' : 'Převod z Air Bank';
+    }
+    rows.push(r);
+  }
+  return { bank: 'Air Bank', holder, cur, rows };
+}
+
+function parseBankPdf(text) {
+  if (/Revolut Bank UAB/.test(text)) return parseRevolutPdf(text);
+  if (/Air Bank a\.s\./.test(text) && /Výpis z běžného účtu/.test(text)) return parseAirBankPdf(text);
+  return null;
+}
+
+
+async function pdfToText(pdf) {
+  const lines = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const tc = await (await pdf.getPage(i)).getTextContent();
+    let line = '', lastY = null;
+    for (const it of tc.items) {
+      const y = Math.round(it.transform[5]);
+      if (lastY !== null && y !== lastY && line.trim()) { lines.push(line); line = ''; }
+      if (line && it.str && !/\s$/.test(line) && !/^\s/.test(it.str)) line += ' ';
+      line += it.str;
+      if (it.hasEOL) { if (line.trim()) lines.push(line); line = ''; }
+      lastY = y;
+    }
+    if (line.trim()) lines.push(line);
+    lines.push('<<PAGE>>');
+  }
+  return lines.map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+let pdfjsReady = null;
+function loadPdfJs() {
+  if (!pdfjsReady) pdfjsReady = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib); };
+    sc.onerror = () => { pdfjsReady = null; rej(new Error('Nepodařilo se načíst čtečku PDF. Zkontroluj připojení.')); };
+    document.head.append(sc);
+  });
+  return pdfjsReady;
+}
+async function readPdfStatement(buf) {
+  const lib = await loadPdfJs();
+  const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
+  return parseBankPdf(await pdfToText(pdf));
+}
+
+// kurzy pro celé období jedním dotazem (víkendy → poslední pracovní den)
+async function prefetchRates(cur, dates) {
+  const sorted = [...new Set(dates)].sort(), t = iso(today());
+  const past = sorted.filter(d => d <= t);
+  if (!past.length) return;
+  const from = iso(new Date(parse(past[0]).getTime() - 7 * 864e5));
+  const r = await fetch('https://api.frankfurter.dev/v1/' + from + '..' + past[past.length - 1] + '?base=' + cur + '&symbols=CZK');
+  if (!r.ok) return;
+  const j = await r.json(), days = Object.keys(j.rates || {}).sort();
+  for (const d of past) {
+    const k = cur + ':' + d;
+    if (rateCache[k]) continue;
+    const have = days.filter(x => x <= d).pop();
+    if (have) rateCache[k] = Promise.resolve({ rate: j.rates[have].CZK, date: have });
+  }
+}
+
 const importKey = p => p.date + '|' + (p.kind === 'in' ? '' : '-') + p.amount.toFixed(2) + '|' + ruleKey(p.name);
 
 let pending = null;
@@ -658,10 +818,21 @@ $('stmt').onchange = async e => {
   if (!f) return;
   const m = $('stmtMsg'); m.classList.remove('err'); m.textContent = 'Čtu výpis…';
   try {
-    const rows = parseStatement(decodeFile(await f.arrayBuffer()));
-    if (!rows) throw new Error('Ve výpisu jsem nenašel sloupce s datem a částkou. Je to CSV export z internetového bankovnictví?');
+    const buf = await f.arrayBuffer();
+    const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+    let rows, bank = '';
+    if (isPdf) {
+      const res = await readPdfStatement(buf);
+      if (!res) throw new Error('Tohle PDF neumím přečíst. Z PDF umím výpisy z Revolutu a Air Bank. Z jiné banky nahraj výpis jako CSV.');
+      rows = res.rows; bank = res.bank;
+    } else {
+      rows = parseStatement(decodeFile(buf));
+      if (!rows) throw new Error('Ve výpisu jsem nenašel sloupce s datem a částkou. Je to CSV export z internetového bankovnictví?');
+    }
     if (!rows.length) throw new Error('Výpis neobsahuje žádné platby.');
     // cizí měny převést kurzem ECB ke dni platby
+    for (const c of new Set(rows.filter(r => r.cur !== 'CZK').map(r => r.cur)))
+      await prefetchRates(c, rows.filter(r => r.cur === c).map(r => r.date)).catch(() => {});
     for (const r of rows) if (r.cur !== 'CZK') {
       const fx = await getRate(r.cur, r.date);
       Object.assign(r, { orig: r.amount, rate: fx.rate, rateDate: fx.date, amount: Math.round(r.amount * fx.rate * 100) / 100 });
@@ -673,24 +844,26 @@ $('stmt').onchange = async e => {
     for (const r of rows) {
       r.importKey = importKey(r);
       if (have[r.importKey] > 0) { have[r.importKey]--; dupes++; continue; }
-      r.cat = categorize(r.text || r.name, r.kind);
+      r.cat = r.transfer ? 'transfer' : categorize(r.text || r.name, r.kind);
       fresh.push(r);
     }
-    showPreview(fresh, rows, dupes);
+    showPreview(fresh, rows, dupes, bank);
     m.textContent = '';
   } catch (err) {
     pending = null; $('stmtPreview').hidden = true;
     m.textContent = err && err.message ? err.message : 'Výpis se nepodařilo načíst.'; m.classList.add('err');
   }
 };
-function showPreview(fresh, all, dupes) {
+function showPreview(fresh, all, dupes, bank) {
   pending = fresh;
   const dates = all.map(r => r.date).sort();
   const dcs = s => parse(s).toLocaleDateString('cs-CZ');
   const cats = {};
-  fresh.filter(r => r.kind === 'out').forEach(r => { cats[r.cat] = (cats[r.cat] || 0) + 1; });
+  fresh.filter(r => r.kind === 'out' && r.cat !== 'transfer').forEach(r => { cats[r.cat] = (cats[r.cat] || 0) + 1; });
   const top = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, n]) => CATS[c].name.toLowerCase() + ' ' + n).join(', ');
-  let s = 'Ve výpisu je ' + all.length + ' plateb (' + dcs(dates[0]) + ' až ' + dcs(dates[dates.length - 1]) + ').';
+  let s = (bank ? 'Výpis z ' + bank + ': ' : 'Ve výpisu je ') + all.length + ' plateb (' + dcs(dates[0]) + ' až ' + dcs(dates[dates.length - 1]) + ').';
+  const tr = fresh.filter(r => r.cat === 'transfer').length;
+  if (tr) s += ' ' + tr + '× převod mezi tvými účty, ten se do výdajů nepočítá.';
   s += fresh.length ? ' Nových: ' + fresh.length + (top ? ', nejčastěji ' + top : '') + '.' : ' Všechny už v appce máš.';
   if (dupes && fresh.length) s += ' ' + dupes + ' už v appce máš, ty přeskočím.';
   if (anchor && fresh.some(r => r.date <= anchor.date)) s += ' Platby do ' + dcs(anchor.date) + ' už jsou v tvém zadaném zůstatku, takže ho nezmění. Uvidíš je v seznamu a ve výdajích podle kategorií.';
