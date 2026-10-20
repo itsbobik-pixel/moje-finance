@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moje finance</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow column — balance up top, add-form below, ledger list last */
+:root {
+  --bg: #f3f5f2; --surface: #ffffff; --fg: #1d2420; --muted: #66706a; --line: #dde3dd;
+  --accent: #2f6b4f; --accent-fg: #ffffff; --plus: #2f7d4f; --minus: #b0413e; --chip: #e7ede8;
+  --display: "Fraunces", Georgia, serif; --body: "Figtree", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141917; --surface: #1c2320; --fg: #e6ece8; --muted: #95a199; --line: #2c3631;
+  --accent: #6fbf94; --accent-fg: #0f1a14; --plus: #7ccf9c; --minus: #ef8a85; --chip: #25302b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141917; --surface: #1c2320; --fg: #e6ece8; --muted: #95a199; --line: #2c3631;
+  --accent: #6fbf94; --accent-fg: #0f1a14; --plus: #7ccf9c; --minus: #ef8a85; --chip: #25302b; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5 }
+main { max-width: 560px; margin: 0 auto; padding: 32px 16px 64px; display: grid; gap: 28px }
+h1, h2 { font-family: var(--display); font-weight: 500; margin: 0; text-wrap: balance }
+h2 { font-size: 1.15rem }
+.label { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600 }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.hero { display: grid; gap: 6px }
+.balance { font-family: var(--display); font-weight: 700; font-size: clamp(2.4rem, 9vw, 3.4rem); line-height: 1.05; font-variant-numeric: tabular-nums }
+.balance.neg { color: var(--minus) }
+.sub { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--muted) }
+.sub b { color: var(--fg); font-weight: 600 }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px }
+form { display: grid; gap: 14px }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+@media (max-width: 420px) { .row { grid-template-columns: 1fr } }
+.field { display: grid; gap: 4px; min-width: 0 }
+.field label { font-size: .82rem; color: var(--muted); font-weight: 500 }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; min-width: 0 }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 9px; overflow: hidden }
+.seg input { position: absolute; opacity: 0; pointer-events: none }
+.seg label { text-align: center; padding: 9px; cursor: pointer; color: var(--muted); font-weight: 500 }
+.seg input:checked + label.out { background: var(--minus); color: var(--surface) }
+.seg input:checked + label.in { background: var(--plus); color: var(--surface) }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px }
+button { font: inherit; cursor: pointer; border: 0; border-radius: 9px }
+.primary { background: var(--accent); color: var(--accent-fg); padding: 11px 16px; font-weight: 600 }
+.primary:disabled { opacity: .5; cursor: not-allowed }
+.msg { font-size: .85rem; color: var(--muted); min-height: 1.2em }
+.msg.err { color: var(--minus) }
+.list { display: grid }
+.item { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line) }
+.item:first-child { border-top: 0 }
+.item .name { font-weight: 500; min-width: 0; overflow-wrap: anywhere }
+.item .meta { grid-column: 1; font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.chip { background: var(--chip); border-radius: 99px; padding: 1px 8px; font-size: .74rem; color: var(--fg) }
+.amt { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-weight: 500 }
+.amt.in { color: var(--plus) } .amt.out { color: var(--minus) }
+.del { grid-row: 1 / span 2; grid-column: 3; background: transparent; color: var(--muted); padding: 6px 8px; font-size: .8rem }
+.del:hover { color: var(--minus) }
+.del.armed { background: var(--minus); color: var(--surface) }
+.empty { color: var(--muted); padding: 8px 0 }
+.backup { display: grid; gap: 10px }
+.backup p { margin: 0 }
+.actions { display: flex; flex-wrap: wrap; gap: 10px }
+.ghost { background: var(--chip); color: var(--fg); padding: 9px 14px; font-weight: 500; border-radius: 9px; cursor: pointer; font-size: .9rem }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px }
+</style>
+
+</head>
+<body>
+<main>
+  <section class="hero" aria-live="polite">
+    <span class="label">Zůstatek k dnešku</span>
+    <div class="balance" id="balance">0 Kč</div>
+    <div class="sub">
+      <span>Na konci měsíce: <b class="num" id="eom">0 Kč</b></span>
+      <span>Opakované měsíčně: <b class="num" id="monthly">0 Kč</b></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin-bottom:14px">Přidat platbu</h2>
+    <form id="form" novalidate>
+      <div class="seg" role="radiogroup" aria-label="Typ">
+        <input type="radio" name="kind" id="k-out" value="out" checked><label for="k-out" class="out">Výdaj</label>
+        <input type="radio" name="kind" id="k-in" value="in"><label for="k-in" class="in">Příjem</label>
+      </div>
+      <div class="field">
+        <label for="f-name">Popis</label>
+        <input id="f-name" maxlength="80" placeholder="např. Nájem, Výplata, Netflix" required>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="f-amount">Částka (Kč)</label>
+          <input id="f-amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required>
+        </div>
+        <div class="field">
+          <label for="f-date">Datum</label>
+          <input id="f-date" type="date" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-repeat">Opakuje se?</label>
+        <select id="f-repeat">
+          <option value="none">Ne, jednorázově</option>
+          <option value="week">Každý týden</option>
+          <option value="month">Každý měsíc</option>
+          <option value="year">Každý rok</option>
+        </select>
+      </div>
+      <button class="primary" id="add" type="submit">Přidat platbu</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </section>
+
+  <section>
+    <div class="head"><h2>Platby</h2><span class="label" id="count"></span></div>
+    <div class="list" id="list"><div class="empty">Zatím žádné platby. První přidáš formulářem výše.</div></div>
+  </section>
+  <section class="card backup">
+    <h2>Záloha</h2>
+    <p class="msg">Data se ukládají jen v tomhle prohlížeči. Občas si stáhni zálohu, ať o ně nepřijdeš, a stejným souborem je můžeš přenést na jiné zařízení.</p>
+    <div class="actions">
+      <button class="ghost" id="export" type="button">Stáhnout zálohu</button>
+      <label class="ghost" for="import">Nahrát zálohu</label>
+      <input type="file" id="import" accept="application/json,.json" hidden>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 2 }).format(n);
+const REPEAT = { none: '', week: 'týdně', month: 'měsíčně', year: 'ročně' };
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const today = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+
+const KEY = 'moje-finance:payments';
+let payments = [];
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(payments)); }
+  catch (e) { setMsg('Uložení do prohlížeče se nepovedlo.', true); }
+}
+const valid = p => p && typeof p.amount === 'number' && typeof p.date === 'string' && typeof p.name === 'string';
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+$('f-date').value = iso(today());
+
+// n-th occurrence of a payment (month/year clamp to last day of month)
+function occ(start, repeat, n) {
+  if (repeat === 'week') return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7 * n);
+  const months = repeat === 'month' ? n : 12 * n;
+  const y = start.getFullYear(), m = start.getMonth() + months;
+  const last = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(start.getDate(), last));
+}
+function countUntil(p, until) {
+  const start = parse(p.date);
+  if (start > until) return 0;
+  if (p.repeat === 'none') return 1;
+  let n = 0;
+  while (occ(start, p.repeat, n) <= until && n < 10000) n++;
+  return n;
+}
+const signed = p => (p.kind === 'in' ? 1 : -1) * p.amount;
+const balanceAt = d => payments.reduce((s, p) => s + signed(p) * countUntil(p, d), 0);
+function nextDate(p) {
+  if (p.repeat === 'none') return null;
+  const start = parse(p.date), t = today();
+  let n = 0; while (occ(start, p.repeat, n) <= t) n++;
+  return occ(start, p.repeat, n);
+}
+
+function render() {
+  const t = today();
+  const bal = balanceAt(t);
+  $('balance').textContent = fmt(bal);
+  $('balance').classList.toggle('neg', bal < 0);
+  $('eom').textContent = fmt(balanceAt(new Date(t.getFullYear(), t.getMonth() + 1, 0)));
+  const monthly = payments.reduce((s, p) => s + signed(p) * ({ week: 52 / 12, month: 1, year: 1 / 12 }[p.repeat] || 0), 0);
+  $('monthly').textContent = fmt(monthly);
+
+  const list = $('list');
+  list.replaceChildren();
+  $('count').textContent = payments.length ? payments.length + ' záznamů' : '';
+  if (!payments.length) {
+    const e = document.createElement('div'); e.className = 'empty';
+    e.textContent = 'Zatím žádné platby. První přidáš formulářem výše.';
+    list.append(e); return;
+  }
+  [...payments].sort((a, b) => b.date.localeCompare(a.date)).forEach(p => {
+    const row = document.createElement('div'); row.className = 'item';
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = p.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const d = document.createElement('span'); d.textContent = parse(p.date).toLocaleDateString('cs-CZ');
+    meta.append(d);
+    if (p.repeat !== 'none') {
+      const c = document.createElement('span'); c.className = 'chip'; c.textContent = '↻ ' + REPEAT[p.repeat]; meta.append(c);
+      const nx = document.createElement('span'); nx.textContent = 'další ' + nextDate(p).toLocaleDateString('cs-CZ'); meta.append(nx);
+    } else if (parse(p.date) > t) {
+      const c = document.createElement('span'); c.className = 'chip'; c.textContent = 'naplánováno'; meta.append(c);
+    }
+    const amt = document.createElement('div'); amt.className = 'amt num ' + p.kind;
+    amt.textContent = (p.kind === 'in' ? '+' : '−') + fmt(p.amount);
+    const del = document.createElement('button'); del.className = 'del'; del.type = 'button'; del.textContent = 'Smazat';
+    del.setAttribute('aria-label', 'Smazat ' + p.name);
+    del.onclick = async () => {
+      if (!del.classList.contains('armed')) {
+        del.classList.add('armed'); del.textContent = 'Opravdu?';
+        setTimeout(() => { del.classList.remove('armed'); del.textContent = 'Smazat'; }, 3000);
+        return;
+      }
+      payments = payments.filter(x => x.id !== p.id); save(); render();
+    };
+    row.append(name, amt, del, meta);
+    list.append(row);
+  });
+}
+
+function setMsg(text, err) { $('msg').textContent = text; $('msg').classList.toggle('err', !!err); }
+
+$('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('f-name').value.trim();
+  const amount = Math.round(parseFloat($('f-amount').value.replace(',', '.')) * 100) / 100;
+  const date = $('f-date').value;
+  if (!name) return setMsg('Doplň popis platby.', true);
+  if (!(amount > 0)) return setMsg('Zadej kladnou částku.', true);
+  if (!date) return setMsg('Vyber datum.', true);
+  const data = { name, amount, date, repeat: $('f-repeat').value,
+    kind: document.querySelector('input[name=kind]:checked').value, created: new Date().toISOString() };
+  payments.push({ id: newId(), ...data }); save(); render();
+  $('f-name').value = ''; $('f-amount').value = ''; $('f-repeat').value = 'none';
+  setMsg('Přidáno.'); $('f-name').focus();
+});
+
+try { payments = (JSON.parse(localStorage.getItem(KEY)) || []).filter(valid); } catch (e) { payments = []; }
+render();
+
+$('export').onclick = () => {
+  const blob = new Blob([JSON.stringify(payments, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'finance-zaloha-' + iso(today()) + '.json';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('import').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data)) throw 0;
+    payments = data.filter(valid).map(p => ({ ...p, id: p.id || newId() }));
+    save(); render(); setMsg('Záloha nahrána: ' + payments.length + ' plateb.');
+  } catch { setMsg('Soubor se nepodařilo načíst. Vyber zálohu stáhnutou z této appky.', true); }
+  e.target.value = '';
+};
+</script>
+</body>
+</html>
