@@ -93,6 +93,17 @@ h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em }
 .prev-row .d { color: var(--muted); font-variant-numeric: tabular-nums; font-size: .78rem }
 .prev-row .a { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap }
 label.primary { display: inline-block }
+.match-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer }
+.match-row:first-child { border-top: 0 }
+.match-row input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--hero) }
+.match-row .d { color: var(--muted); font-size: .78rem }
+.coverage { display: grid; gap: 8px }
+.cov-row { background: var(--bg); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px }
+.cov-head { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline }
+.cov-head .d { color: var(--muted); font-size: .8rem }
+.cov-chip { border-radius: 99px; padding: 2px 10px; font-size: .78rem; font-weight: 600 }
+.cov-chip.gap { background: var(--minus-soft); color: var(--minus) }
+.cov-chip.ok { background: var(--plus-soft); color: var(--plus) }
 
 /* karty a formulář */
 .card { background: var(--surface); border-radius: 22px; padding: 18px; display: grid; gap: 14px }
@@ -228,6 +239,7 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
   <section class="card settings" id="importCard">
     <h2>Import výpisu z banky</h2>
     <p class="msg">Nahraj PDF výpis z Revolutu nebo Air Bank, případně CSV z jakékoli banky. Appka najde datum, částku a popis, platby roztřídí do kategorií a ty, které už máš, přeskočí.</p>
+    <div class="coverage" id="coverage" hidden></div>
     <div class="actions">
       <label class="primary btn" for="stmt" tabindex="0" id="stmtLabel">Nahrát výpis (PDF nebo CSV)</label>
       <input type="file" id="stmt" accept=".pdf,application/pdf,.csv,text/csv,.txt" hidden>
@@ -235,6 +247,10 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
     <div class="preview" id="stmtPreview" hidden>
       <p class="msg" id="stmtSummary" style="color:var(--fg)"></p>
       <div class="prev-list" id="stmtRows"></div>
+      <div class="preview" id="stmtMatchWrap" hidden>
+        <p class="msg" id="stmtMatchHead" style="color:var(--fg)"></p>
+        <div class="prev-list" id="stmtMatches"></div>
+      </div>
       <div class="actions">
         <button class="primary" id="stmtImport" type="button">Importovat</button>
         <button class="ghost" id="stmtCancel" type="button">Zrušit</button>
@@ -304,11 +320,14 @@ const colorFor = s => { let h = 0; for (const ch of s.toLowerCase()) h = (h * 31
 const KEY = 'moje-finance:payments', DEL_KEY = 'moje-finance:deleted', ANCHOR_KEY = 'moje-finance:anchor', RULES_KEY = 'moje-finance:rules';
 let payments = [], deleted = {}, anchor = null; // anchor = { amount, date: 'YYYY-MM-DD', at: ms }
 let rules = {}; // naučené kategorie: { 'normalizovany popis': { cat, at } }
+let statements = []; // nahrané výpisy: { account, from, to, at }
+const STMT_KEY = 'moje-finance:statements';
 function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(payments));
     localStorage.setItem(DEL_KEY, JSON.stringify(deleted));
     localStorage.setItem(RULES_KEY, JSON.stringify(rules));
+    localStorage.setItem(STMT_KEY, JSON.stringify(statements));
     anchor ? localStorage.setItem(ANCHOR_KEY, JSON.stringify(anchor)) : localStorage.removeItem(ANCHOR_KEY);
   } catch (e) { setMsg('Uložení do prohlížeče se nepovedlo.', true); }
 }
@@ -366,6 +385,7 @@ function render() {
     ? 'Zadáno ' + parse(anchor.date).toLocaleDateString('cs-CZ') + ' jako ' + fmt(anchor.amount) + ', dál se počítá s platbami.'
     : 'Zadej, kolik máš teď na účtu, a appka bude počítat od té částky.';
   renderBreakdown();
+  renderCoverage();
 
   const list = $('list');
   list.replaceChildren();
@@ -706,7 +726,11 @@ function parseRevolutPdf(text) {
     }
     delete r.details;
   }
-  return { bank: 'Revolut', holder, cur, rows };
+  const MON = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
+  const pm = text.match(/Transakce účtu od (\d{1,2})\. (\S+) (\d{4}) do (\d{1,2})\. (\S+) (\d{4})/);
+  const period = pm && MON.includes(pm[2]) && MON.includes(pm[5])
+    ? { from: isoD(pm[1], MON.indexOf(pm[2]) + 1, pm[3]), to: isoD(pm[4], MON.indexOf(pm[5]) + 1, pm[6]) } : null;
+  return { bank: 'Revolut', account: 'Revolut ' + cur, holder, cur, rows, period };
 }
 
 function parseAirBankPdf(text) {
@@ -757,7 +781,10 @@ function parseAirBankPdf(text) {
     }
     rows.push(r);
   }
-  return { bank: 'Air Bank', holder, cur, rows };
+  const pm = text.match(/Období výpisu: (\d{1,2})\. (\d{1,2})\. (\d{4}) - (\d{1,2})\. (\d{1,2})\. (\d{4})/);
+  const period = pm ? { from: isoD(pm[1], pm[2], pm[3]), to: isoD(pm[4], pm[5], pm[6]) } : null;
+  const acct = (text.match(/Číslo účtu: (\d+)\s*\//) || [])[1];
+  return { bank: 'Air Bank', account: 'Air Bank' + (acct ? ' ···' + acct.slice(-4) : ''), holder, cur, rows, period };
 }
 
 function parseBankPdf(text) {
@@ -771,13 +798,16 @@ async function pdfToText(pdf) {
   const lines = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const tc = await (await pdf.getPage(i)).getTextContent();
-    let line = '', lastY = null;
+    let line = '', lastY = null, lastEnd = null;
     for (const it of tc.items) {
-      const y = Math.round(it.transform[5]);
-      if (lastY !== null && y !== lastY && line.trim()) { lines.push(line); line = ''; }
-      if (line && it.str && !/\s$/.test(line) && !/^\s/.test(it.str)) line += ' ';
+      const y = Math.round(it.transform[5]), x = it.transform[4];
+      const size = Math.hypot(it.transform[2], it.transform[3]) || 10;
+      if (lastY !== null && y !== lastY && line.trim()) { lines.push(line); line = ''; lastEnd = null; }
+      // mezera jen tam, kde je mezi kousky textu skutečná mezera (diakritika bývá v PDF samostatný kousek)
+      if (line && it.str && !/\s$/.test(line) && !/^\s/.test(it.str) && (lastEnd === null || x - lastEnd > size * 0.15)) line += ' ';
       line += it.str;
-      if (it.hasEOL) { if (line.trim()) lines.push(line); line = ''; }
+      if (it.str) lastEnd = x + (it.width || 0);
+      if (it.hasEOL) { if (line.trim()) lines.push(line); line = ''; lastEnd = null; }
       lastY = y;
     }
     if (line.trim()) lines.push(line);
@@ -821,7 +851,41 @@ async function prefetchRates(cur, dates) {
 
 const importKey = p => p.date + '|' + (p.kind === 'in' ? '' : '-') + p.amount.toFixed(2) + '|' + ruleKey(p.name);
 
-let pending = null;
+let pending = null; // { rows, stmt: { account, from, to } }
+const DAY = 864e5;
+const dcs = s => parse(s).toLocaleDateString('cs-CZ');
+const addDays = (s, n) => iso(new Date(parse(s).getTime() + n * DAY + 12 * 36e5));
+
+// ručně zadaná platba, která je možná totéž co platba z výpisu (stejná částka, datum ±3 dny)
+function findManualMatch(r, used) {
+  const rd = parse(r.date).getTime();
+  for (const p of payments) {
+    if (p.source === 'import' || p.kind !== r.kind) continue;
+    const pc = p.cur || 'CZK';
+    if (pc === r.cur) {
+      // stejná měna: částka musí sedět na haléř/cent
+      if (Math.abs((pc === 'CZK' ? p.amount : p.orig) - (r.cur === 'CZK' ? r.amount : r.orig)) > 0.005) continue;
+    } else {
+      // různé měny (kurz se liší): blízká částka a navíc společné slovo v názvu
+      if (Math.abs(p.amount - r.amount) > Math.max(1, r.amount * 0.03)) continue;
+      const words = new Set(norm(p.name).split(/[^a-z0-9]+/).filter(w => w.length >= 3));
+      if (!norm(r.text || r.name).split(/[^a-z0-9]+/).some(w => words.has(w))) continue;
+    }
+    if (p.repeat === 'none') {
+      if (Math.abs(parse(p.date).getTime() - rd) <= 3 * DAY && !used.has(p.id)) return { key: p.id, id: p.id, name: p.name, date: p.date, recurring: false };
+    } else {
+      const start = parse(p.date);
+      if (rd < start.getTime() - 3 * DAY) continue;
+      const n = Math.max(0, countUntil(p, new Date(rd)) - 1);
+      for (const k of [n, n + 1]) {
+        const o = occ(start, p.repeat, k), key = p.id + '@' + iso(o);
+        if (Math.abs(o.getTime() - rd) <= 3 * DAY && !used.has(key)) return { key, id: p.id, name: p.name, date: iso(o), recurring: true };
+      }
+    }
+  }
+  return null;
+}
+
 $('stmt').onchange = async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
@@ -829,16 +893,18 @@ $('stmt').onchange = async e => {
   try {
     const buf = await f.arrayBuffer();
     const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
-    let rows, bank = '';
+    let rows, bank = '', stmt = null;
     if (isPdf) {
       const res = await readPdfStatement(buf);
       if (!res) throw new Error('Tohle PDF neumím přečíst. Z PDF umím výpisy z Revolutu a Air Bank. Z jiné banky nahraj výpis jako CSV.');
       rows = res.rows; bank = res.bank;
+      if (res.period) stmt = { account: res.account, ...res.period };
     } else {
       rows = parseStatement(decodeFile(buf));
       if (!rows) throw new Error('Ve výpisu jsem nenašel sloupce s datem a částkou. Je to CSV export z internetového bankovnictví?');
     }
     if (!rows.length) throw new Error('Výpis neobsahuje žádné platby.');
+    if (!stmt) { const ds = rows.map(r => r.date).sort(); stmt = { account: 'Výpisy CSV', from: ds[0], to: ds[ds.length - 1] }; }
     // cizí měny převést kurzem ECB ke dni platby
     for (const c of new Set(rows.filter(r => r.cur !== 'CZK').map(r => r.cur)))
       await prefetchRates(c, rows.filter(r => r.cur === c).map(r => r.date)).catch(() => {});
@@ -847,7 +913,11 @@ $('stmt').onchange = async e => {
       Object.assign(r, { orig: r.amount, rate: fx.rate, rateDate: fx.date, amount: Math.round(r.amount * fx.rate * 100) / 100 });
     }
     const have = {};
-    for (const p of payments) { const k = p.importKey || importKey(p); have[k] = (have[k] || 0) + 1; }
+    for (const p of payments) {
+      const k = p.importKey || importKey(p); have[k] = (have[k] || 0) + 1;
+      // platby z výpisů, které už pokrývá tahle opakovaná platba (potvrzeno dřív)
+      for (const ck of p.coveredKeys || []) have[ck] = (have[ck] || 0) + 1;
+    }
     const fresh = [];
     let dupes = 0;
     for (const r of rows) {
@@ -856,17 +926,20 @@ $('stmt').onchange = async e => {
       r.cat = r.transfer ? 'transfer' : categorize(r.text || r.name, r.kind);
       fresh.push(r);
     }
-    showPreview(fresh, rows, dupes, bank);
+    const used = new Set();
+    for (const r of fresh) { const mt = findManualMatch(r, used); if (mt) { r.match = mt; r.same = true; used.add(mt.key); } }
     m.textContent = '';
+    if (!fresh.length) { recordStatement(stmt); save(); render(); }
+    showPreview(fresh, rows, dupes, bank, stmt);
   } catch (err) {
     pending = null; $('stmtPreview').hidden = true;
     m.textContent = err && err.message ? err.message : 'Výpis se nepodařilo načíst.'; m.classList.add('err');
   }
 };
-function showPreview(fresh, all, dupes, bank) {
-  pending = fresh;
+
+function showPreview(fresh, all, dupes, bank, stmt) {
+  pending = { rows: fresh, stmt };
   const dates = all.map(r => r.date).sort();
-  const dcs = s => parse(s).toLocaleDateString('cs-CZ');
   const cats = {};
   fresh.filter(r => r.kind === 'out' && r.cat !== 'transfer').forEach(r => { cats[r.cat] = (cats[r.cat] || 0) + 1; });
   const top = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, n]) => CATS[c].name.toLowerCase() + ' ' + n).join(', ');
@@ -889,37 +962,114 @@ function showPreview(fresh, all, dupes, bank) {
   }));
   if (fresh.length > 8) { const more = document.createElement('div'); more.className = 'prev-row'; more.style.gridTemplateColumns = '1fr'; more.textContent = '… a dalších ' + (fresh.length - 8); $('stmtRows').append(more); }
   $('stmtRows').hidden = !fresh.length;
+
+  // možné shody s ručně zadanými platbami
+  const matched = fresh.filter(r => r.match);
+  $('stmtMatchWrap').hidden = !matched.length;
+  if (matched.length) {
+    $('stmtMatchHead').textContent = (matched.length === 1 ? 'Tuhle platbu' : 'Tyhle platby (' + matched.length + ')') +
+      ' možná už máš zadané ručně. Zaškrtnuté beru jako stejnou platbu: jednorázovou ruční nahradím platbou z výpisu, u opakované platbu z výpisu přeskočím, protože ji už počítá opakování.';
+    $('stmtMatches').replaceChildren(...matched.map((r, i) => {
+      const row = document.createElement('label'); row.className = 'match-row';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = r.same; cb.id = 'match-' + i;
+      cb.onchange = () => { r.same = cb.checked; };
+      const t = document.createElement('span');
+      const b = document.createElement('b'); b.textContent = r.name;
+      t.append(b, ' ' + dcs(r.date) + ', ' + (r.kind === 'in' ? '+' : '−') + fmt(r.amount));
+      const s2 = document.createElement('span'); s2.className = 'd';
+      s2.textContent = '= ručně zadaná „' + r.match.name + '“ ' + (r.match.recurring ? '(opakovaná, ' + dcs(r.match.date) + ')' : '(' + dcs(r.match.date) + ')');
+      t.append(document.createElement('br'), s2);
+      row.append(cb, t); return row;
+    }));
+  }
   $('stmtImport').hidden = !fresh.length;
   $('stmtImport').textContent = 'Importovat ' + fresh.length + (fresh.length === 1 ? ' platbu' : fresh.length < 5 ? ' platby' : ' plateb');
   $('stmtPreview').hidden = false;
 }
+
 $('stmtImport').onclick = () => {
   if (!pending) return;
   const now = Date.now();
-  for (const r of pending) {
+  let added = 0, replaced = 0, skipped = 0;
+  for (const r of pending.rows) {
+    if (r.match && r.same) {
+      if (r.match.recurring) {
+        const rp = payments.find(x => x.id === r.match.id);
+        if (rp) { rp.coveredKeys = [...new Set([...(rp.coveredKeys || []), r.importKey])]; rp.updated = now; }
+        skipped++; continue;
+      }
+      const i = payments.findIndex(x => x.id === r.match.id);
+      if (i >= 0) { payments.splice(i, 1); deleted[r.match.id] = now; replaced++; }
+    }
     const p = { id: newId(), name: r.name, amount: r.amount, date: r.date, repeat: 'none', kind: r.kind, cat: r.cat,
       source: 'import', importKey: r.importKey, created: new Date(now).toISOString(), updated: now };
     if (r.cur !== 'CZK') Object.assign(p, { cur: r.cur, orig: r.orig, rate: r.rate, rateDate: r.rateDate });
-    payments.push(p);
+    payments.push(p); added++;
   }
-  const n = pending.length; pending = null;
+  recordStatement(pending.stmt);
+  pending = null;
   save(); render();
   $('stmtPreview').hidden = true;
   $('stmtMsg').classList.remove('err');
-  $('stmtMsg').textContent = 'Importováno ' + n + ' plateb. Kategorii můžeš u každé platby změnit a appka si to zapamatuje.';
+  $('stmtMsg').textContent = 'Importováno ' + added + (added === 1 ? ' platba' : added > 1 && added < 5 ? ' platby' : ' plateb') +
+    (replaced ? ', ' + replaced + '× ručně zadaná nahrazena platbou z výpisu' : '') +
+    (skipped ? ', ' + skipped + '× přeskočeno, protože ji už počítá opakovaná platba' : '') +
+    '. Kategorii můžeš u každé platby změnit a appka si to zapamatuje.';
 };
 $('stmtCancel').onclick = () => { pending = null; $('stmtPreview').hidden = true; };
+
+// ── Pokrytí výpisů: za jaká období jsou nahrané a kde chybí ──
+function recordStatement(st) {
+  if (!st || !st.from || !st.to) return;
+  if (!statements.some(x => x.account === st.account && x.from === st.from && x.to === st.to))
+    statements.push({ account: st.account, from: st.from, to: st.to, at: Date.now() });
+}
+function renderCoverage() {
+  const el = $('coverage');
+  const accounts = [...new Set(statements.map(s => s.account))].sort();
+  el.hidden = !accounts.length;
+  if (!accounts.length) return;
+  const t = iso(today());
+  el.replaceChildren(...accounts.map(acc => {
+    const rs = statements.filter(s => s.account === acc).sort((a, b) => a.from.localeCompare(b.from));
+    const merged = [];
+    for (const r of rs) {
+      const last = merged[merged.length - 1];
+      if (last && r.from <= addDays(last.to, 1)) { if (r.to > last.to) last.to = r.to; }
+      else merged.push({ from: r.from, to: r.to });
+    }
+    const gaps = [];
+    for (let i = 1; i < merged.length; i++) gaps.push({ from: addDays(merged[i - 1].to, 1), to: addDays(merged[i].from, -1) });
+    const end = merged[merged.length - 1].to;
+    if (end < t) gaps.push({ from: addDays(end, 1), to: null });
+    const row = document.createElement('div'); row.className = 'cov-row';
+    const h = document.createElement('div'); h.className = 'cov-head';
+    const b = document.createElement('b'); b.textContent = acc;
+    const have = document.createElement('span'); have.className = 'd';
+    have.textContent = 'nahráno ' + merged.map(r => dcs(r.from) + ' – ' + dcs(r.to)).join(', ');
+    h.append(b, have);
+    const chips = document.createElement('div'); chips.className = 'actions';
+    if (!gaps.length) { const c = document.createElement('span'); c.className = 'cov-chip ok'; c.textContent = 'Kompletní'; chips.append(c); }
+    for (const g of gaps) {
+      const c = document.createElement('span'); c.className = 'cov-chip gap';
+      c.textContent = g.to ? 'Chybí ' + dcs(g.from) + ' – ' + dcs(g.to) : 'Chybí od ' + dcs(g.from) + ' do dneška';
+      chips.append(c);
+    }
+    row.append(h, chips); return row;
+  }));
+}
 $('stmtLabel').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('stmt').click(); } });
 
 // ── Načtení a záloha ──
 try { payments = (JSON.parse(localStorage.getItem(KEY)) || []).filter(valid); } catch (e) { payments = []; }
 try { deleted = JSON.parse(localStorage.getItem(DEL_KEY)) || {}; } catch (e) { deleted = {}; }
 try { rules = JSON.parse(localStorage.getItem(RULES_KEY)) || {}; } catch (e) { rules = {}; }
+try { statements = (JSON.parse(localStorage.getItem(STMT_KEY)) || []).filter(x => x && x.account && x.from && x.to); } catch (e) { statements = []; }
 try { const a = JSON.parse(localStorage.getItem(ANCHOR_KEY)); anchor = validAnchor(a) ? a : null; } catch (e) { anchor = null; }
 render();
 
 $('export').onclick = () => {
-  const blob = new Blob([JSON.stringify({ payments, anchor, rules }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ payments, anchor, rules, statements }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'finance-zaloha-' + iso(today()) + '.json';
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -935,6 +1085,7 @@ $('import').onchange = async e => {
     deleted = {};
     if (!Array.isArray(data) && validAnchor(data.anchor)) anchor = { ...data.anchor, at: now };
     if (!Array.isArray(data) && data.rules && typeof data.rules === 'object') rules = data.rules;
+    if (!Array.isArray(data) && Array.isArray(data.statements)) statements = data.statements.filter(x => x && x.account && x.from && x.to);
     save(); render(); setMsg('Záloha nahrána: ' + payments.length + ' plateb.');
   } catch { setMsg('Soubor se nepodařilo načíst. Vyber zálohu stáhnutou z této appky.', true); }
   e.target.value = '';
@@ -970,7 +1121,9 @@ function merge(a, b) {
   const anchors = [a.anchor, b.anchor].filter(validAnchor).sort((x, y) => y.at - x.at);
   const rl = { ...(a.rules || {}) };
   for (const [k, v] of Object.entries(b.rules || {})) if (v && CATS[v.cat] && (!rl[k] || v.at > rl[k].at)) rl[k] = v;
-  return { payments: out, deleted: del, anchor: anchors[0] || null, rules: rl };
+  const st = [...(a.statements || [])];
+  for (const x of b.statements || []) if (x && x.account && !st.some(y => y.account === x.account && y.from === x.from && y.to === x.to)) st.push(x);
+  return { payments: out, deleted: del, anchor: anchors[0] || null, rules: rl, statements: st };
 }
 
 function scheduleSync() {
@@ -989,11 +1142,11 @@ async function syncNow() {
     const remote = await res.json();
     if (!res.ok || remote.error) throw new Error(remote.error || res.status);
     if (code !== syncCode) return;
-    const m = remote.data ? merge({ payments, deleted, anchor, rules }, remote.data) : { payments, deleted, anchor, rules };
-    payments = m.payments; deleted = m.deleted; anchor = m.anchor; rules = m.rules;
+    const m = remote.data ? merge({ payments, deleted, anchor, rules, statements }, remote.data) : { payments, deleted, anchor, rules, statements };
+    payments = m.payments; deleted = m.deleted; anchor = m.anchor; rules = m.rules; statements = m.statements;
     persist(); render();
     const put = await fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': code, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { payments, deleted, anchor, rules } }) });
+      body: JSON.stringify({ data: { payments, deleted, anchor, rules, statements } }) });
     if (!put.ok) throw new Error(put.status);
     syncLast = Date.now(); syncErr = null;
     try { localStorage.setItem('moje-finance:sync-last', String(syncLast)); } catch {}
@@ -1064,7 +1217,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') syncNow();
   else if (syncTimer) {
     clearTimeout(syncTimer); syncTimer = null;
-    const body = JSON.stringify({ data: { payments, deleted, anchor, rules } });
+    const body = JSON.stringify({ data: { payments, deleted, anchor, rules, statements } });
     fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': syncCode, 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 }).catch(() => {});
   }
 });
