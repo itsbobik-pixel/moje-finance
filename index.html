@@ -61,7 +61,29 @@ h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em }
 .hero-btn { justify-self: start; background: var(--hero-fg); color: var(--hero); border-radius: 99px; padding: 8px 14px; font-weight: 600; font-size: .85rem }
 .anchor-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .anchor-form input { flex: 1 1 160px; background: var(--hero-fg); color: #18142e; border: 0; font-size: 1.05rem; font-weight: 600 }
-.anchor-form .hero-btn.alt { background: var(--hero-soft); color: var(--hero-fg) }
+.hero-btn.alt { background: var(--hero-soft); color: var(--hero-fg) }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 8px }
+
+/* kategorie */
+.cat { position: relative; display: inline-flex; align-items: center; gap: 5px; border-radius: 99px; background: var(--bg); padding: 0 4px 0 8px; font-size: .72rem; font-weight: 600 }
+.cat::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)) }
+.cat select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding: 1px 4px 1px 0; font-size: inherit; font-weight: inherit; color: var(--fg); width: auto; cursor: pointer; border-radius: 0 }
+.bars { display: grid; gap: 10px }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; font-size: .88rem }
+.bar-row .amt-s { font-weight: 600; font-variant-numeric: tabular-nums }
+.bar { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--bg); overflow: hidden }
+.bar i { display: block; height: 100%; border-radius: 99px }
+.total { font-family: var(--display); font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums }
+
+/* import výpisu */
+.preview { display: grid; gap: 10px }
+.prev-list { display: grid; gap: 0; font-size: .85rem; background: var(--bg); border-radius: 14px; padding: 4px 12px }
+.prev-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line) }
+.prev-row:first-child { border-top: 0 }
+.prev-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.prev-row .d { color: var(--muted); font-variant-numeric: tabular-nums; font-size: .78rem }
+.prev-row .a { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap }
+label.primary { display: inline-block }
 
 /* karty a formulář */
 .card { background: var(--surface); border-radius: 22px; padding: 18px; display: grid; gap: 14px }
@@ -139,9 +161,13 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
       <span class="stat">Konec měsíce <b class="num" id="eom">0 Kč</b></span>
       <span class="stat">Opakované / měsíc <b class="num" id="monthly">0 Kč</b></span>
     </div>
-    <button class="hero-btn" id="anchorBtn" type="button">Nastavit zůstatek na účtu</button>
+    <div class="hero-actions" id="heroActions">
+      <button class="hero-btn" id="depositBtn" type="button">+ Přidat peníze</button>
+      <button class="hero-btn alt" id="anchorBtn" type="button">Aktuální zůstatek</button>
+    </div>
     <div class="anchor-form" id="anchorForm" hidden>
-      <input id="anchorIn" type="number" inputmode="decimal" step="0.01" placeholder="např. 25 000" aria-label="Kolik máš teď na účtu (Kč)">
+      <span class="hero-note" id="anchorHint" style="flex-basis:100%"></span>
+      <input id="anchorIn" type="number" inputmode="decimal" step="0.01" aria-label="Částka v Kč">
       <button class="hero-btn" id="anchorSave" type="button">Uložit</button>
       <button class="hero-btn alt" id="anchorCancel" type="button">Zrušit</button>
     </div>
@@ -188,6 +214,29 @@ button, label.btn { font: inherit; cursor: pointer; border: 0; border-radius: 12
       <button class="primary" id="add" type="submit">Přidat platbu</button>
       <p class="msg" id="msg"></p>
     </form>
+  </section>
+
+  <section class="card settings" id="importCard">
+    <h2>Import výpisu z banky</h2>
+    <p class="msg">V internetovém bankovnictví si stáhni výpis jako CSV a nahraj ho sem. Appka najde datum, částku a popis, platby roztřídí do kategorií a ty, které už máš, přeskočí.</p>
+    <div class="actions">
+      <label class="primary btn" for="stmt" tabindex="0" id="stmtLabel">Nahrát výpis (CSV)</label>
+      <input type="file" id="stmt" accept=".csv,text/csv,.txt" hidden>
+    </div>
+    <div class="preview" id="stmtPreview" hidden>
+      <p class="msg" id="stmtSummary" style="color:var(--fg)"></p>
+      <div class="prev-list" id="stmtRows"></div>
+      <div class="actions">
+        <button class="primary" id="stmtImport" type="button">Importovat</button>
+        <button class="ghost" id="stmtCancel" type="button">Zrušit</button>
+      </div>
+    </div>
+    <p class="msg" id="stmtMsg"></p>
+  </section>
+
+  <section class="card settings" id="breakdown" hidden>
+    <div class="head"><h2>Výdaje tento měsíc</h2><span class="total" id="bdTotal"></span></div>
+    <div class="bars" id="bars"></div>
   </section>
 
   <section style="display:grid;gap:10px">
@@ -243,12 +292,14 @@ const COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6'];
 const colorFor = s => { let h = 0; for (const ch of s.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return 'var(' + COLORS[h % COLORS.length] + ')'; };
 
 // ── Data: platby, smazané (pro synchronizaci) a skutečný zůstatek na účtu ──
-const KEY = 'moje-finance:payments', DEL_KEY = 'moje-finance:deleted', ANCHOR_KEY = 'moje-finance:anchor';
+const KEY = 'moje-finance:payments', DEL_KEY = 'moje-finance:deleted', ANCHOR_KEY = 'moje-finance:anchor', RULES_KEY = 'moje-finance:rules';
 let payments = [], deleted = {}, anchor = null; // anchor = { amount, date: 'YYYY-MM-DD', at: ms }
+let rules = {}; // naučené kategorie: { 'normalizovany popis': { cat, at } }
 function persist() {
   try {
     localStorage.setItem(KEY, JSON.stringify(payments));
     localStorage.setItem(DEL_KEY, JSON.stringify(deleted));
+    localStorage.setItem(RULES_KEY, JSON.stringify(rules));
     anchor ? localStorage.setItem(ANCHOR_KEY, JSON.stringify(anchor)) : localStorage.removeItem(ANCHOR_KEY);
   } catch (e) { setMsg('Uložení do prohlížeče se nepovedlo.', true); }
 }
@@ -305,7 +356,7 @@ function render() {
   $('heroNote').textContent = anchor
     ? 'Zadáno ' + parse(anchor.date).toLocaleDateString('cs-CZ') + ' jako ' + fmt(anchor.amount) + ', dál se počítá s platbami.'
     : 'Zadej, kolik máš teď na účtu, a appka bude počítat od té částky.';
-  $('anchorBtn').textContent = anchor ? 'Upravit zůstatek' : 'Nastavit zůstatek na účtu';
+  renderBreakdown();
 
   const list = $('list');
   list.replaceChildren();
@@ -329,6 +380,7 @@ function render() {
     } else if (parse(p.date) > t) {
       const c = document.createElement('span'); c.className = 'tag plan'; c.textContent = 'naplánováno'; meta.append(c);
     }
+    meta.append(catSelect(p));
     if (p.cur && p.cur !== 'CZK' && typeof p.orig === 'number') {
       const c = document.createElement('span'); c.className = 'tag fxtag';
       c.textContent = fmtCur(p.orig, p.cur) + ' · kurz ' + fmtRate(p.rate);
@@ -397,8 +449,9 @@ $('form').addEventListener('submit', async e => {
   if (!name) return setMsg('Doplň popis platby.', true);
   if (!(orig > 0)) return setMsg('Zadej kladnou částku.', true);
   if (!date) return setMsg('Vyber datum.', true);
+  const kind = document.querySelector('input[name=kind]:checked').value;
   const data = { name, amount: orig, date, repeat: document.querySelector('input[name=repeat]:checked').value,
-    kind: document.querySelector('input[name=kind]:checked').value, created: new Date().toISOString() };
+    kind, cat: categorize(name, kind), created: new Date().toISOString() };
   if (cur !== 'CZK') {
     $('add').disabled = true; setMsg('Načítám kurz…');
     try {
@@ -415,30 +468,276 @@ $('form').addEventListener('submit', async e => {
   setMsg(cur === 'CZK' ? 'Přidáno.' : 'Přidáno, převedeno na ' + fmt(data.amount) + '.'); $('f-name').focus();
 });
 
-// ── Skutečný zůstatek na účtu ──
-function toggleAnchor(open) {
-  $('anchorForm').hidden = !open; $('anchorBtn').hidden = open;
-  if (open) { $('anchorIn').value = String(Math.round(balanceAt(today()) * 100) / 100); $('anchorIn').focus(); $('anchorIn').select(); }
+// ── Karta zůstatku: přidat peníze / zadat aktuální zůstatek na účtu ──
+let heroMode = null;
+function openHero(mode) {
+  heroMode = mode;
+  $('anchorForm').hidden = !mode; $('heroActions').hidden = !!mode;
+  if (!mode) return;
+  const isAnchor = mode === 'anchor';
+  $('anchorHint').textContent = isAnchor ? 'Kolik máš teď skutečně na účtu?' : 'Kolik peněz přidáváš? Uloží se jako dnešní příjem.';
+  $('anchorSave').textContent = isAnchor ? 'Uložit zůstatek' : 'Přidat';
+  $('anchorIn').placeholder = isAnchor ? 'např. 25 000' : 'např. 1 000';
+  $('anchorIn').value = isAnchor ? String(Math.round(balanceAt(today()) * 100) / 100) : '';
+  $('anchorIn').focus(); $('anchorIn').select();
 }
-$('anchorBtn').onclick = () => toggleAnchor(true);
-$('anchorCancel').onclick = () => toggleAnchor(false);
-function saveAnchor() {
+$('depositBtn').onclick = () => openHero('deposit');
+$('anchorBtn').onclick = () => openHero('anchor');
+$('anchorCancel').onclick = () => openHero(null);
+function saveHero() {
   const v = Math.round(parseFloat(String($('anchorIn').value).replace(/\s/g, '').replace(',', '.')) * 100) / 100;
-  if (!Number.isFinite(v)) { $('anchorIn').focus(); return; }
-  anchor = { amount: v, date: iso(today()), at: Date.now() };
-  save(); render(); toggleAnchor(false);
+  if (!Number.isFinite(v) || (heroMode === 'deposit' && !(v > 0))) { $('anchorIn').focus(); return; }
+  if (heroMode === 'anchor') anchor = { amount: v, date: iso(today()), at: Date.now() };
+  else payments.push({ id: newId(), name: 'Vklad', amount: v, date: iso(today()), repeat: 'none', kind: 'in', cat: 'income',
+    created: new Date().toISOString(), updated: Date.now() });
+  save(); render(); openHero(null);
 }
-$('anchorSave').onclick = saveAnchor;
-$('anchorIn').addEventListener('keydown', e => { if (e.key === 'Enter') saveAnchor(); if (e.key === 'Escape') toggleAnchor(false); });
+$('anchorSave').onclick = saveHero;
+$('anchorIn').addEventListener('keydown', e => { if (e.key === 'Enter') saveHero(); if (e.key === 'Escape') openHero(null); });
+
+// ── Kategorie: naučená pravidla, pak klíčová slova (bez diakritiky) ──
+const CATS = {
+  food:      { name: 'Potraviny', color: '--c3', kw: ['albert', 'lidl', 'billa', 'kaufland', 'tesco', 'penny', 'globus', 'rohlik', 'kosik', 'makro', 'coop', 'zabka', 'norma', 'hruska', 'potraviny', 'pekarna', 'reznictvi', 'spar', 'flop', 'tamda'] },
+  eat:       { name: 'Restaurace a kavárny', color: '--c1', kw: ['restaurace', 'restaurant', 'bistro', 'kavarna', 'cafe', 'coffee', 'pizz', 'mcdonald', 'kfc', 'burger', 'starbucks', 'costa', 'wolt', 'foodora', 'damejidlo', 'bageterie', 'sushi', 'kebab', 'hospoda', 'pivnice', 'bar'] },
+  transport: { name: 'Doprava', color: '--c4', kw: ['benzina', 'shell', 'omv', 'mol', 'orlen', 'eurooil', 'cerpaci', 'ceske drahy', 'cd.cz', 'regiojet', 'leo express', 'dpp', 'litacka', 'pid', 'uber', 'bolt', 'liftago', 'parkovani', 'parking', 'dalnicni', 'edalnice', 'flixbus', 'ryanair', 'wizz', 'smartwings'] },
+  home:      { name: 'Bydlení a energie', color: '--c5', kw: ['najem', 'najemne', 'pre', 'cez', 'innogy', 'eon', 'e.on', 'plynarensk', 'vodarn', 'pvk', 'svj', 'elektrin', 'zalohy', 'energie', 'bytove druzstvo', 'ikea', 'hornbach', 'obi', 'bauhaus', 'mountfield'] },
+  subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github'] },
+  phone:     { name: 'Telefon a internet', color: '--c4', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink'] },
+  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport'] },
+  shop:      { name: 'Nákupy', color: '--c2', kw: ['alza', 'mall.cz', 'czc', 'datart', 'amazon', 'zalando', 'aboutyou', 'about you', 'h&m', 'zara', 'reserved', 'decathlon', 'sportisimo', 'temu', 'shein', 'aliexpress', 'allegro', 'kik', 'pepco', 'action', 'tedi', 'vinted'] },
+  fun:       { name: 'Zábava a cestování', color: '--c5', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
+  cash:      { name: 'Hotovost a převody', color: '--c2', kw: ['bankomat', 'atm', 'vyber hotovosti', 'vyber z bankomatu', 'prevod', 'revolut', 'trvaly prikaz'] },
+  income:    { name: 'Příjem', color: '--c3', kw: [] },
+  other:     { name: 'Ostatní', color: '--c6', kw: [] },
+};
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// krátká slova (o2, dm, pre…) musí stát samostatně, delší stačí na začátku slova (mcdonald → mcdonalds)
+const KW = Object.entries(CATS).flatMap(([cat, c]) => c.kw.map(k =>
+  [cat, new RegExp('(^|[^a-z0-9])' + esc(k) + (k.length <= 3 ? '($|[^a-z0-9])' : ''))]));
+const ruleKey = name => norm(name).slice(0, 60);
+function categorize(text, kind) {
+  const t = norm(text);
+  const learned = rules[ruleKey(text)] || Object.entries(rules).find(([k]) => k.length >= 4 && t.includes(k))?.[1];
+  if (learned && CATS[learned.cat]) return learned.cat;
+  if (kind === 'in') return 'income';
+  for (const [cat, re] of KW) if (re.test(t)) return cat;
+  return 'other';
+}
+const catOf = p => (CATS[p.cat] ? p.cat : categorize(p.name, p.kind));
+
+function catSelect(p) {
+  const wrap = document.createElement('span'); wrap.className = 'cat';
+  const cur = catOf(p);
+  wrap.style.setProperty('--dot', 'var(' + CATS[cur].color + ')');
+  const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Kategorie platby ' + p.name);
+  for (const [k, c] of Object.entries(CATS)) { const o = document.createElement('option'); o.value = k; o.textContent = c.name; sel.append(o); }
+  sel.value = cur;
+  sel.onchange = () => {
+    const key = ruleKey(p.name), now = Date.now();
+    rules[key] = { cat: sel.value, at: now };
+    let n = 0;
+    payments.forEach(x => { if (ruleKey(x.name) === key) { x.cat = sel.value; x.updated = now; n++; } });
+    save(); render();
+    setMsg(n > 1 ? 'Kategorie změněna u ' + n + ' plateb „' + p.name + '“. Příště to appka zařadí sama.' : 'Kategorie změněna. Příště to appka zařadí sama.');
+  };
+  wrap.append(sel);
+  return wrap;
+}
+
+function renderBreakdown() {
+  const t = today(), y = t.getFullYear(), m = t.getMonth();
+  const end = new Date(y, m + 1, 0), prevEnd = new Date(y, m, 0);
+  const sums = {};
+  for (const p of payments) {
+    if (p.kind !== 'out') continue;
+    const n = countUntil(p, end) - countUntil(p, prevEnd);
+    if (n > 0) sums[catOf(p)] = (sums[catOf(p)] || 0) + n * p.amount;
+  }
+  const rows = Object.entries(sums).sort((a, b) => b[1] - a[1]);
+  $('breakdown').hidden = !rows.length;
+  if (!rows.length) return;
+  const max = rows[0][1];
+  $('bdTotal').textContent = fmt(rows.reduce((s, r) => s + r[1], 0));
+  $('bars').replaceChildren(...rows.map(([cat, sum]) => {
+    const r = document.createElement('div'); r.className = 'bar-row';
+    const n = document.createElement('span'); n.textContent = CATS[cat].name;
+    const a = document.createElement('span'); a.className = 'amt-s'; a.textContent = fmt(sum);
+    const b = document.createElement('div'); b.className = 'bar';
+    const i = document.createElement('i'); i.style.width = Math.max(3, sum / max * 100) + '%'; i.style.background = 'var(' + CATS[cat].color + ')';
+    b.append(i); r.append(n, a, b); return r;
+  }));
+}
+
+// ── Import výpisu (CSV z internetového bankovnictví) ──
+function decodeFile(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); }
+  catch { return new TextDecoder('windows-1250').decode(buf); } // české banky často exportují v cp1250
+}
+function splitCsv(text, delim) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell.trim()); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell.trim()); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell.trim() || row.length) { row.push(cell.trim()); rows.push(row); }
+  return rows;
+}
+function parseDate(s) {
+  s = String(s || '').trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  if ((m = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/)) || (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)))
+    return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  return null;
+}
+function parseNum(s) {
+  s = String(s || '').replace(/[\s ']/g, '').replace(/[−–]/g, '-').replace(/[^\d,.\-+]/g, '');
+  if (!/\d/.test(s)) return NaN;
+  const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+  if (lc > -1 && ld > -1) s = lc > ld ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  else if (lc > -1) s = /,\d{1,2}$/.test(s) && (s.match(/,/g) || []).length === 1 ? s.replace(',', '.') : s.replace(/,/g, '');
+  else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, '');
+  return parseFloat(s);
+}
+const H = {
+  date: /^(datum zauctovani|datum provedeni|datum transakce|datum|date|completed date|started date|booking date|transaction date|zauctovano|valuta)/,
+  amount: /^(castka v mene uctu|zauctovana castka|castka transakce|castka|objem|amount|suma)/,
+  debit: /^(vydaj|debet|debit|odchozi|money out|paid out|withdrawal)/,
+  credit: /^(prijem|kredit|credit|prichozi|money in|paid in|deposit)/,
+  cur: /^(mena|currency)$/,
+  state: /^(state|stav)$/,
+  desc: [/obchodnik|merchant|nazev obchodnika/, /nazev protiuctu|protistrana|counterparty|payee|nazev uctu protistrany/, /^popis|description/, /zprava|message|reference/, /poznamka|note/, /misto|location/, /^typ|^type|druh/],
+};
+function findHeader(rows) {
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const h = rows[i].map(norm);
+    const idx = re => h.findIndex(c => re.test(c) && !/zustatek|balance|poplatek|fee/.test(c));
+    const date = idx(H.date), amount = idx(H.amount), debit = idx(H.debit), credit = idx(H.credit);
+    if (date < 0 || (amount < 0 && debit < 0 && credit < 0)) continue;
+    const used = new Set([date, amount, debit, credit]);
+    const desc = [];
+    for (const re of H.desc) h.forEach((c, j) => { if (re.test(c) && !used.has(j) && !desc.includes(j)) desc.push(j); });
+    return { row: i, date, amount, debit, credit, cur: idx(H.cur), state: idx(H.state), desc, width: h.length };
+  }
+  return null;
+}
+function parseStatement(text) {
+  let best = null;
+  for (const d of [';', ',', '\t', '|']) {
+    const rows = splitCsv(text, d), hd = findHeader(rows);
+    if (hd && (!best || hd.width > best.hd.width)) best = { rows, hd };
+  }
+  if (!best) return null;
+  const { rows, hd } = best, out = [];
+  for (const r of rows.slice(hd.row + 1)) {
+    const date = parseDate(r[hd.date]);
+    if (!date) continue;
+    if (hd.state >= 0 && /reverted|declined|failed|zamitnut|zrusen/.test(norm(r[hd.state]))) continue;
+    let amt = hd.amount >= 0 ? parseNum(r[hd.amount]) : NaN;
+    if (!Number.isFinite(amt)) {
+      const deb = hd.debit >= 0 ? parseNum(r[hd.debit]) : NaN, cred = hd.credit >= 0 ? parseNum(r[hd.credit]) : NaN;
+      amt = (Number.isFinite(cred) ? Math.abs(cred) : 0) - (Number.isFinite(deb) ? Math.abs(deb) : 0);
+    }
+    if (!Number.isFinite(amt) || amt === 0) continue;
+    const texts = hd.desc.map(j => r[j]).filter(Boolean);
+    const name = (texts[0] || 'Platba').replace(/^(nákup|nakup|platba kartou|card payment|platba)\s*[:\-]?\s*/i, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Platba';
+    const cur = hd.cur >= 0 && /^[A-Z]{3}$/.test((r[hd.cur] || '').trim().toUpperCase()) ? r[hd.cur].trim().toUpperCase() : 'CZK';
+    out.push({ date, amount: Math.abs(amt), kind: amt > 0 ? 'in' : 'out', name, text: texts.join(' '), cur });
+  }
+  return out;
+}
+const importKey = p => p.date + '|' + (p.kind === 'in' ? '' : '-') + p.amount.toFixed(2) + '|' + ruleKey(p.name);
+
+let pending = null;
+$('stmt').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const m = $('stmtMsg'); m.classList.remove('err'); m.textContent = 'Čtu výpis…';
+  try {
+    const rows = parseStatement(decodeFile(await f.arrayBuffer()));
+    if (!rows) throw new Error('Ve výpisu jsem nenašel sloupce s datem a částkou. Je to CSV export z internetového bankovnictví?');
+    if (!rows.length) throw new Error('Výpis neobsahuje žádné platby.');
+    // cizí měny převést kurzem ECB ke dni platby
+    for (const r of rows) if (r.cur !== 'CZK') {
+      const fx = await getRate(r.cur, r.date);
+      Object.assign(r, { orig: r.amount, rate: fx.rate, rateDate: fx.date, amount: Math.round(r.amount * fx.rate * 100) / 100 });
+    }
+    const have = {};
+    for (const p of payments) { const k = p.importKey || importKey(p); have[k] = (have[k] || 0) + 1; }
+    const fresh = [];
+    let dupes = 0;
+    for (const r of rows) {
+      r.importKey = importKey(r);
+      if (have[r.importKey] > 0) { have[r.importKey]--; dupes++; continue; }
+      r.cat = categorize(r.text || r.name, r.kind);
+      fresh.push(r);
+    }
+    showPreview(fresh, rows, dupes);
+    m.textContent = '';
+  } catch (err) {
+    pending = null; $('stmtPreview').hidden = true;
+    m.textContent = err && err.message ? err.message : 'Výpis se nepodařilo načíst.'; m.classList.add('err');
+  }
+};
+function showPreview(fresh, all, dupes) {
+  pending = fresh;
+  const dates = all.map(r => r.date).sort();
+  const dcs = s => parse(s).toLocaleDateString('cs-CZ');
+  const cats = {};
+  fresh.filter(r => r.kind === 'out').forEach(r => { cats[r.cat] = (cats[r.cat] || 0) + 1; });
+  const top = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, n]) => CATS[c].name.toLowerCase() + ' ' + n).join(', ');
+  let s = 'Ve výpisu je ' + all.length + ' plateb (' + dcs(dates[0]) + ' až ' + dcs(dates[dates.length - 1]) + ').';
+  s += fresh.length ? ' Nových: ' + fresh.length + (top ? ', nejčastěji ' + top : '') + '.' : ' Všechny už v appce máš.';
+  if (dupes && fresh.length) s += ' ' + dupes + ' už v appce máš, ty přeskočím.';
+  if (anchor && fresh.some(r => r.date <= anchor.date)) s += ' Platby do ' + dcs(anchor.date) + ' už jsou v tvém zadaném zůstatku, takže ho nezmění. Uvidíš je v seznamu a ve výdajích podle kategorií.';
+  $('stmtSummary').textContent = s;
+  $('stmtRows').replaceChildren(...fresh.slice(0, 8).map(r => {
+    const row = document.createElement('div'); row.className = 'prev-row';
+    const d = document.createElement('span'); d.className = 'd'; d.textContent = dcs(r.date);
+    const n = document.createElement('span'); n.className = 'nm';
+    n.append(r.name + ' '); const c = document.createElement('span'); c.className = 'cat'; c.style.setProperty('--dot', 'var(' + CATS[r.cat].color + ')');
+    c.append(CATS[r.cat].name); c.style.paddingRight = '8px'; n.append(c);
+    const a = document.createElement('span'); a.className = 'a'; a.style.color = r.kind === 'in' ? 'var(--plus)' : 'var(--fg)';
+    a.textContent = (r.kind === 'in' ? '+' : '−') + fmt(r.amount);
+    row.append(d, n, a); return row;
+  }));
+  if (fresh.length > 8) { const more = document.createElement('div'); more.className = 'prev-row'; more.style.gridTemplateColumns = '1fr'; more.textContent = '… a dalších ' + (fresh.length - 8); $('stmtRows').append(more); }
+  $('stmtRows').hidden = !fresh.length;
+  $('stmtImport').hidden = !fresh.length;
+  $('stmtImport').textContent = 'Importovat ' + fresh.length + (fresh.length === 1 ? ' platbu' : fresh.length < 5 ? ' platby' : ' plateb');
+  $('stmtPreview').hidden = false;
+}
+$('stmtImport').onclick = () => {
+  if (!pending) return;
+  const now = Date.now();
+  for (const r of pending) {
+    const p = { id: newId(), name: r.name, amount: r.amount, date: r.date, repeat: 'none', kind: r.kind, cat: r.cat,
+      source: 'import', importKey: r.importKey, created: new Date(now).toISOString(), updated: now };
+    if (r.cur !== 'CZK') Object.assign(p, { cur: r.cur, orig: r.orig, rate: r.rate, rateDate: r.rateDate });
+    payments.push(p);
+  }
+  const n = pending.length; pending = null;
+  save(); render();
+  $('stmtPreview').hidden = true;
+  $('stmtMsg').classList.remove('err');
+  $('stmtMsg').textContent = 'Importováno ' + n + ' plateb. Kategorii můžeš u každé platby změnit a appka si to zapamatuje.';
+};
+$('stmtCancel').onclick = () => { pending = null; $('stmtPreview').hidden = true; };
+$('stmtLabel').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('stmt').click(); } });
 
 // ── Načtení a záloha ──
 try { payments = (JSON.parse(localStorage.getItem(KEY)) || []).filter(valid); } catch (e) { payments = []; }
 try { deleted = JSON.parse(localStorage.getItem(DEL_KEY)) || {}; } catch (e) { deleted = {}; }
+try { rules = JSON.parse(localStorage.getItem(RULES_KEY)) || {}; } catch (e) { rules = {}; }
 try { const a = JSON.parse(localStorage.getItem(ANCHOR_KEY)); anchor = validAnchor(a) ? a : null; } catch (e) { anchor = null; }
 render();
 
 $('export').onclick = () => {
-  const blob = new Blob([JSON.stringify({ payments, anchor }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ payments, anchor, rules }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'finance-zaloha-' + iso(today()) + '.json';
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -453,6 +752,7 @@ $('import').onchange = async e => {
     payments = list.filter(valid).map(p => ({ ...p, id: p.id || newId(), updated: now }));
     deleted = {};
     if (!Array.isArray(data) && validAnchor(data.anchor)) anchor = { ...data.anchor, at: now };
+    if (!Array.isArray(data) && data.rules && typeof data.rules === 'object') rules = data.rules;
     save(); render(); setMsg('Záloha nahrána: ' + payments.length + ' plateb.');
   } catch { setMsg('Soubor se nepodařilo načíst. Vyber zálohu stáhnutou z této appky.', true); }
   e.target.value = '';
@@ -486,7 +786,9 @@ function merge(a, b) {
   }
   const out = Object.values(byId).filter(p => !(del[p.id] >= (p.updated || 0)));
   const anchors = [a.anchor, b.anchor].filter(validAnchor).sort((x, y) => y.at - x.at);
-  return { payments: out, deleted: del, anchor: anchors[0] || null };
+  const rl = { ...(a.rules || {}) };
+  for (const [k, v] of Object.entries(b.rules || {})) if (v && CATS[v.cat] && (!rl[k] || v.at > rl[k].at)) rl[k] = v;
+  return { payments: out, deleted: del, anchor: anchors[0] || null, rules: rl };
 }
 
 function scheduleSync() {
@@ -505,11 +807,11 @@ async function syncNow() {
     const remote = await res.json();
     if (!res.ok || remote.error) throw new Error(remote.error || res.status);
     if (code !== syncCode) return;
-    const m = remote.data ? merge({ payments, deleted, anchor }, remote.data) : { payments, deleted, anchor };
-    payments = m.payments; deleted = m.deleted; anchor = m.anchor;
+    const m = remote.data ? merge({ payments, deleted, anchor, rules }, remote.data) : { payments, deleted, anchor, rules };
+    payments = m.payments; deleted = m.deleted; anchor = m.anchor; rules = m.rules;
     persist(); render();
     const put = await fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': code, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { payments, deleted, anchor } }) });
+      body: JSON.stringify({ data: { payments, deleted, anchor, rules } }) });
     if (!put.ok) throw new Error(put.status);
     syncLast = Date.now(); syncErr = null;
     try { localStorage.setItem('moje-finance:sync-last', String(syncLast)); } catch {}
@@ -580,7 +882,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') syncNow();
   else if (syncTimer) {
     clearTimeout(syncTimer); syncTimer = null;
-    const body = JSON.stringify({ data: { payments, deleted, anchor } });
+    const body = JSON.stringify({ data: { payments, deleted, anchor, rules } });
     fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': syncCode, 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 }).catch(() => {});
   }
 });
