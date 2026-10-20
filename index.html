@@ -501,9 +501,9 @@ const CATS = {
   eat:       { name: 'Restaurace a kavárny', color: '--c1', kw: ['restaurace', 'restaurant', 'bistro', 'kavarna', 'cafe', 'coffee', 'pizz', 'mcdonald', 'kfc', 'burger', 'starbucks', 'costa', 'wolt', 'foodora', 'damejidlo', 'bageterie', 'sushi', 'kebab', 'hospoda', 'pivnice', 'bar', 'gelat', 'pasticceri', 'caffe', 'caffetteri', 'trattoria', 'osteria', 'ristorante', 'panific', 'focacc', 'doner', 'delikomat', 'foodex', 'mangiami', 'mister coffee'] },
   transport: { name: 'Doprava', color: '--c4', kw: ['benzina', 'shell', 'omv', 'mol', 'orlen', 'eurooil', 'cerpaci', 'ceske drahy', 'cd.cz', 'regiojet', 'leo express', 'dpp', 'litacka', 'pid', 'uber', 'bolt', 'liftago', 'parkovani', 'parking', 'dalnicni', 'edalnice', 'flixbus', 'ryanair', 'wizz', 'smartwings', 'bit mobility', 'trenitalia', 'italo', 'mycicero', 'my cicero', 'atc', 'autolinee', 'omio', 'terravision', 'idsjmk', 'cd', 'tper'] },
   home:      { name: 'Bydlení a energie', color: '--c5', kw: ['najem', 'najemne', 'pre', 'cez', 'innogy', 'eon', 'e.on', 'plynarensk', 'vodarn', 'pvk', 'svj', 'elektrin', 'zalohy', 'energie', 'bytove druzstvo', 'ikea', 'hornbach', 'obi', 'bauhaus', 'mountfield'] },
-  subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github', 'contabo', 'skool', 'hostinger', 'claude'] },
+  subs:      { name: 'Předplatné', color: '--c6', kw: ['netflix', 'spotify', 'hbo', 'max.com', 'disney', 'apple.com', 'itunes', 'google', 'youtube', 'icloud', 'microsoft', 'adobe', 'openai', 'chatgpt', 'anthropic', 'claude.ai', 'voyo', 'skylink', 'audible', 'patreon', 'github', 'contabo', 'skool', 'hostinger', 'claude', 'cloudflare'] },
   phone:     { name: 'Telefon a internet', color: '--c4', kw: ['vodafone', 't-mobile', 'tmobile', 'o2', 'upc', 'nordic telecom', 'starlink', 'tim', 'iliad', 'windtre', 'wind tre', 'ho. mobile'] },
-  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport', 'farmacia', 'parafarmacia'] },
+  health:    { name: 'Zdraví a drogerie', color: '--c3', kw: ['lekarna', 'dr.max', 'dr. max', 'drmax', 'benu', 'dm', 'dm drogerie', 'rossmann', 'teta', 'notino', 'lekar', 'zubar', 'nemocnice', 'fitness', 'gym', 'multisport', 'farmacia', 'parafarmacia'] },
   shop:      { name: 'Nákupy', color: '--c2', kw: ['alza', 'mall.cz', 'czc', 'datart', 'amazon', 'zalando', 'aboutyou', 'about you', 'h&m', 'zara', 'reserved', 'decathlon', 'sportisimo', 'temu', 'shein', 'aliexpress', 'allegro', 'kik', 'pepco', 'action', 'tedi', 'vinted', 'obi', 'risparmio', 'terranova', 'pepco'] },
   fun:       { name: 'Zábava a cestování', color: '--c5', kw: ['kino', 'cinema', 'ticketportal', 'ticketmaster', 'dropticket', 'ticketone', 'goout', 'steam', 'playstation', 'xbox', 'nintendo', 'booking', 'airbnb', 'hotel', 'divadlo', 'muzeum'] },
   transfer:  { name: 'Převody mezi účty', color: '--c4', kw: ['dobiti', 'smeneno na', 'smeneno z', 'top-up', 'topup', 'prevod na revolut', 'prevod z revolutu', 'prevod na air bank', 'prevod z air bank'] },
@@ -730,7 +730,7 @@ function parseAirBankPdf(text) {
       const ci = parts.findIndex(p => /\*{3,}/.test(p));
       const raw = (parts[ci + 1] || '').replace(/^\d+\s*-\s*/, '').split(',')[0];
       // obchodník bez adresy („LIDL 1645 VIA FONTEVIVO“ → „LIDL 1645“), pokud po oříznutí něco zbyde
-      const cut = raw.split(/\s(?:via|viale|corso|piazza|ul\.|ulice|nam\.|namesti|str\.|strasse|street|avenue|ave)(?:\s|\.|$)/i)[0].replace(/\s+\d[\d/]*$/, '');
+      const cut = raw.split(/\s(?:ul\.|nam\.|str\.)|\s(?:via|viale|corso|piazza|ulice|namesti|strasse|street|avenue|ave)(?:\s|\.|$)/i)[0].replace(/\s+\d[\d/]*$/, '');
       name = cut.length >= 4 ? cut : raw;
       if (name.length > 3 && name === name.toUpperCase()) name = name.toLowerCase().replace(/(^|[\s.*-])(\p{L})/gu, (a, b, c) => b + c.toUpperCase());
     } else {
