@@ -65,6 +65,8 @@ button { font: inherit; cursor: pointer; border: 0; border-radius: 9px }
 .backup p { margin: 0 }
 .actions { display: flex; flex-wrap: wrap; gap: 10px }
 .ghost { background: var(--chip); color: var(--fg); padding: 9px 14px; font-weight: 500; border-radius: 9px; cursor: pointer; font-size: .9rem }
+.code { font-size: 1.15rem; padding: 10px 12px; background: var(--bg); border: 1px dashed var(--line); border-radius: 9px; overflow-wrap: anywhere; user-select: all }
+.ghost.armed { background: var(--minus); color: var(--surface) }
 .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px }
 </style>
 
@@ -119,9 +121,37 @@ button { font: inherit; cursor: pointer; border: 0; border-radius: 9px }
     <div class="head"><h2>Platby</h2><span class="label" id="count"></span></div>
     <div class="list" id="list"><div class="empty">Zatím žádné platby. První přidáš formulářem výše.</div></div>
   </section>
+  <section class="card backup" id="sync">
+    <div class="head"><h2>Synchronizace</h2><span class="label" id="syncState"></span></div>
+    <div id="syncOff">
+      <p class="msg">Se synchronizací uvidíš stejné platby na mobilu i na počítači. Vytvoř kód a na druhém zařízení ho zadej.</p>
+      <div class="actions">
+        <button class="primary" id="newCode" type="button">Vytvořit nový kód</button>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label for="codeIn">Mám kód z jiného zařízení</label>
+        <div class="actions">
+          <input id="codeIn" placeholder="finance-xxxxx-xxxxx-xxxxx" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1 1 220px">
+          <button class="ghost" id="joinBtn" type="button">Připojit</button>
+        </div>
+      </div>
+    </div>
+    <div id="syncOn" hidden>
+      <span class="label">Tvůj synchronizační kód</span>
+      <div class="code num" id="syncCode"></div>
+      <p class="msg">Kód funguje jako heslo. Kdo ho zná, vidí tvoje platby, takže ho nikomu neposílej.</p>
+      <div class="actions">
+        <button class="ghost" id="copyCode" type="button">Kopírovat kód</button>
+        <button class="ghost" id="syncNowBtn" type="button">Synchronizovat teď</button>
+        <button class="ghost" id="unlink" type="button">Odpojit zařízení</button>
+      </div>
+    </div>
+    <div class="msg" id="syncMsg"></div>
+  </section>
+
   <section class="card backup">
     <h2>Záloha</h2>
-    <p class="msg">Data se ukládají jen v tomhle prohlížeči. Občas si stáhni zálohu, ať o ně nepřijdeš, a stejným souborem je můžeš přenést na jiné zařízení.</p>
+    <p class="msg">Bez synchronizace jsou platby jen v tomhle prohlížeči. Záloha do souboru se hodí i tak.</p>
     <div class="actions">
       <button class="ghost" id="export" type="button">Stáhnout zálohu</button>
       <label class="ghost" for="import">Nahrát zálohu</label>
@@ -138,12 +168,13 @@ const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0
 const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const today = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
 
-const KEY = 'moje-finance:payments';
-let payments = [];
-function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(payments)); }
+const KEY = 'moje-finance:payments', DEL_KEY = 'moje-finance:deleted';
+let payments = [], deleted = {};
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(payments)); localStorage.setItem(DEL_KEY, JSON.stringify(deleted)); }
   catch (e) { setMsg('Uložení do prohlížeče se nepovedlo.', true); }
 }
+function save() { persist(); scheduleSync(); }
 const valid = p => p && typeof p.amount === 'number' && typeof p.date === 'string' && typeof p.name === 'string';
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
 $('f-date').value = iso(today());
@@ -212,7 +243,7 @@ function render() {
         setTimeout(() => { del.classList.remove('armed'); del.textContent = 'Smazat'; }, 3000);
         return;
       }
-      payments = payments.filter(x => x.id !== p.id); save(); render();
+      payments = payments.filter(x => x.id !== p.id); deleted[p.id] = Date.now(); save(); render();
     };
     row.append(name, amt, del, meta);
     list.append(row);
@@ -231,12 +262,13 @@ $('form').addEventListener('submit', async e => {
   if (!date) return setMsg('Vyber datum.', true);
   const data = { name, amount, date, repeat: $('f-repeat').value,
     kind: document.querySelector('input[name=kind]:checked').value, created: new Date().toISOString() };
-  payments.push({ id: newId(), ...data }); save(); render();
+  payments.push({ id: newId(), ...data, updated: Date.now() }); save(); render();
   $('f-name').value = ''; $('f-amount').value = ''; $('f-repeat').value = 'none';
   setMsg('Přidáno.'); $('f-name').focus();
 });
 
 try { payments = (JSON.parse(localStorage.getItem(KEY)) || []).filter(valid); } catch (e) { payments = []; }
+try { deleted = JSON.parse(localStorage.getItem(DEL_KEY)) || {}; } catch (e) { deleted = {}; }
 render();
 
 $('export').onclick = () => {
@@ -250,11 +282,137 @@ $('import').onchange = async e => {
   try {
     const data = JSON.parse(await f.text());
     if (!Array.isArray(data)) throw 0;
-    payments = data.filter(valid).map(p => ({ ...p, id: p.id || newId() }));
+    const now = Date.now();
+    payments = data.filter(valid).map(p => ({ ...p, id: p.id || newId(), updated: now }));
+    deleted = {};
     save(); render(); setMsg('Záloha nahrána: ' + payments.length + ' plateb.');
   } catch { setMsg('Soubor se nepodařilo načíst. Vyber zálohu stáhnutou z této appky.', true); }
   e.target.value = '';
 };
+
+
+// ── Synchronizace (stejný Worker jako LinguaVelo; v KV je jen SHA-256 kódu) ──
+const SYNC_URL = 'https://flat-paper-f764.itsbobik.workers.dev/sync';
+const SYNC_CODE_RE = /^[a-z0-9-]{12,64}$/;
+let syncCode = null, syncLast = 0, syncErr = null, syncTimer = null, syncBusy = false, syncAgain = false;
+try { syncCode = localStorage.getItem('moje-finance:sync-code'); syncLast = +localStorage.getItem('moje-finance:sync-last') || 0; } catch {}
+
+function genSyncCode() {
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const c = [...crypto.getRandomValues(new Uint8Array(15))].map(x => abc[x % abc.length]).join('');
+  return 'finance-' + c.slice(0, 5) + '-' + c.slice(5, 10) + '-' + c.slice(10);
+}
+function setSyncCode(code) {
+  syncCode = code;
+  try { code ? localStorage.setItem('moje-finance:sync-code', code) : localStorage.removeItem('moje-finance:sync-code'); } catch {}
+}
+
+// sloučení: u platby vyhraje novější verze, smazání vyhraje, pokud je novější než platba
+function merge(a, b) {
+  const del = { ...(a.deleted || {}) };
+  for (const [id, t] of Object.entries(b.deleted || {})) del[id] = Math.max(del[id] || 0, t);
+  const byId = {};
+  for (const p of [...(a.payments || []), ...(b.payments || [])]) {
+    if (!valid(p) || !p.id) continue;
+    if (!byId[p.id] || (p.updated || 0) > (byId[p.id].updated || 0)) byId[p.id] = p;
+  }
+  const out = Object.values(byId).filter(p => !(del[p.id] >= (p.updated || 0)));
+  return { payments: out, deleted: del };
+}
+
+function scheduleSync() {
+  if (!syncCode) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(), 1500);
+}
+
+async function syncNow() {
+  if (!syncCode) return;
+  if (syncBusy) { syncAgain = true; return; }
+  syncBusy = true; clearTimeout(syncTimer); renderSync();
+  const code = syncCode;
+  try {
+    const res = await fetch(SYNC_URL, { headers: { 'X-Sync-Code': code } });
+    const remote = await res.json();
+    if (!res.ok || remote.error) throw new Error(remote.error || res.status);
+    if (code !== syncCode) return;
+    const m = remote.data ? merge({ payments, deleted }, remote.data) : { payments, deleted };
+    payments = m.payments; deleted = m.deleted;
+    persist(); render();
+    const put = await fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': code, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { payments, deleted } }) });
+    if (!put.ok) throw new Error(put.status);
+    syncLast = Date.now(); syncErr = null;
+    try { localStorage.setItem('moje-finance:sync-last', String(syncLast)); } catch {}
+  } catch (e) {
+    syncErr = e.message || 'chyba sítě';
+  } finally {
+    syncBusy = false;
+    if (syncAgain) { syncAgain = false; scheduleSync(); }
+    renderSync();
+  }
+}
+
+function agoText(t) {
+  if (!t) return 'zatím nikdy';
+  const s = Math.round((Date.now() - t) / 1000);
+  if (s < 60) return 'právě teď';
+  if (s < 3600) return 'před ' + Math.round(s / 60) + ' min';
+  if (s < 86400) return 'před ' + Math.round(s / 3600) + ' h';
+  return new Date(t).toLocaleString('cs-CZ');
+}
+
+function renderSync() {
+  $('syncOff').hidden = !!syncCode; $('syncOn').hidden = !syncCode;
+  $('syncState').textContent = !syncCode ? 'vypnuto' : syncBusy ? 'synchronizuji…' : syncErr ? 'chyba' : 'zapnuto';
+  if (!syncCode) return;
+  $('syncCode').textContent = syncCode;
+  const m = $('syncMsg');
+  m.textContent = syncBusy ? 'Synchronizuji…'
+    : syncErr ? 'Synchronizace se nepovedla (' + syncErr + '). Zkusím to znovu při další změně.'
+    : 'Synchronizováno ' + agoText(syncLast) + '.';
+  m.classList.toggle('err', !!syncErr && !syncBusy);
+}
+
+$('newCode').onclick = () => { setSyncCode(genSyncCode()); syncLast = 0; syncNow(); };
+$('joinBtn').onclick = async () => {
+  const code = $('codeIn').value.trim().toLowerCase().replace(/\s+/g, '');
+  const m = $('syncMsg');
+  if (!SYNC_CODE_RE.test(code)) { m.textContent = 'Tohle nevypadá jako kód (např. finance-ab3cd-ef4gh-jk5mn).'; m.classList.add('err'); return; }
+  setSyncCode(code); syncLast = 0;
+  await syncNow();
+  if (syncErr) { const e = syncErr; setSyncCode(null); syncErr = null; renderSync(); m.textContent = 'Připojení se nepovedlo (' + e + ').'; m.classList.add('err'); return; }
+  $('codeIn').value = '';
+};
+$('syncNowBtn').onclick = () => syncNow();
+$('copyCode').onclick = async e => {
+  const b = e.currentTarget;
+  try { await navigator.clipboard.writeText(syncCode); b.textContent = 'Zkopírováno'; setTimeout(() => b.textContent = 'Kopírovat kód', 2000); }
+  catch { const r = document.createRange(); r.selectNodeContents($('syncCode')); getSelection().removeAllRanges(); getSelection().addRange(r); }
+};
+$('unlink').onclick = e => {
+  const b = e.currentTarget;
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = 'Opravdu odpojit?';
+    setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Odpojit zařízení'; }, 3000);
+    return;
+  }
+  b.classList.remove('armed'); b.textContent = 'Odpojit zařízení';
+  setSyncCode(null); syncLast = 0; syncErr = null; $('syncMsg').textContent = 'Zařízení odpojeno. Platby tu zůstaly.'; renderSync();
+};
+
+document.addEventListener('visibilitychange', () => {
+  if (!syncCode) return;
+  if (document.visibilityState === 'visible') syncNow();
+  else if (syncTimer) {
+    clearTimeout(syncTimer); syncTimer = null;
+    const body = JSON.stringify({ data: { payments, deleted } });
+    fetch(SYNC_URL, { method: 'PUT', headers: { 'X-Sync-Code': syncCode, 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 }).catch(() => {});
+  }
+});
+
+renderSync();
+if (syncCode) syncNow();
 </script>
 </body>
 </html>
